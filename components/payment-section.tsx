@@ -1,11 +1,8 @@
 "use client"
 
-import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Smartphone, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Mail } from "lucide-react"
+import { CreditCard, CheckCircle, XCircle, Clock } from "lucide-react"
 
 interface Quote {
   total_pages: number
@@ -23,10 +20,6 @@ interface PaymentData {
 
 interface PaymentSectionProps {
   quote: Quote | null
-  phoneNumber: string
-  onPhoneNumberChange: (phone: string) => void
-  email: string
-  onEmailChange: (email: string) => void
   onPayment: () => void
   paymentStatus: "idle" | "processing" | "success" | "failed"
   paymentData: PaymentData | null
@@ -34,44 +27,10 @@ interface PaymentSectionProps {
 
 export function PaymentSection({
   quote,
-  phoneNumber,
-  onPhoneNumberChange,
-  email,
-  onEmailChange,
   onPayment,
   paymentStatus,
   paymentData,
 }: PaymentSectionProps) {
-  const [phoneError, setPhoneError] = useState("")
-  const [emailError, setEmailError] = useState("")
-
-  const validatePhoneNumber = (phone: string): boolean => {
-    const kenyanPhoneRegex = /^(254|0)[17]\d{8}$/
-    return kenyanPhoneRegex.test(phone.replace(/[^\d]/g, ""))
-  }
-
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
-  }
-
-  const handlePhoneChange = (value: string) => {
-    onPhoneNumberChange(value)
-    if (value && !validatePhoneNumber(value)) {
-      setPhoneError("Please enter a valid Kenyan phone number (e.g., 254712345678)")
-    } else {
-      setPhoneError("")
-    }
-  }
-
-  const handleEmailChange = (value: string) => {
-    onEmailChange(value)
-    if (value && !validateEmail(value)) {
-      setEmailError("Please enter a valid email address")
-    } else {
-      setEmailError("")
-    }
-  }
 
   if (!quote) {
     return (
@@ -96,63 +55,20 @@ export function PaymentSection({
         </CardContent>
       </Card>
 
-      {/* Email Input */}
-      <div className="space-y-2">
-        <Label htmlFor="email" className="flex items-center gap-2 text-tiber">
-          <Mail className="h-4 w-4" />
-          Email Address (Required)
-        </Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="your@email.com"
-          value={email}
-          onChange={(e) => handleEmailChange(e.target.value)}
-          className="border-tiber focus:border-sage"
-          disabled={paymentStatus === "processing"}
-        />
-        {emailError && (
-          <p className="text-sm text-red-600 flex items-center gap-1">
-            <AlertCircle className="h-4 w-4" />
-            {emailError}
-          </p>
-        )}
-        <p className="text-xs text-sage">Required for payment processing and receipt</p>
+      {/* Simple Payment Info */}
+      <div className="text-center space-y-2">
+        <p className="text-sage">
+          Pay securely with Card, M-Pesa, or Bank Transfer
+        </p>
+        <p className="text-xs text-sage">
+          Powered by Paystack - Enter payment details in the popup
+        </p>
       </div>
 
-      {/* Phone Number Input */}
-      <div className="space-y-2">
-        <Label htmlFor="phone" className="flex items-center gap-2 text-tiber">
-          <Smartphone className="h-4 w-4" />
-          Phone Number (Optional)
-        </Label>
-        <div className="flex">
-          <div className="flex items-center px-3 bg-cream border border-tiber border-r-0 rounded-l-md">
-            <span className="text-sm text-tiber">+254</span>
-          </div>
-          <Input
-            id="phone"
-            type="tel"
-            placeholder="712345678"
-            value={phoneNumber.replace("254", "")}
-            onChange={(e) => handlePhoneChange("254" + e.target.value)}
-            className="rounded-l-none border-tiber focus:border-sage"
-            disabled={paymentStatus === "processing"}
-          />
-        </div>
-        {phoneError && (
-          <p className="text-sm text-red-600 flex items-center gap-1">
-            <AlertCircle className="h-4 w-4" />
-            {phoneError}
-          </p>
-        )}
-        <p className="text-xs text-sage">Optional - for SMS notifications</p>
-      </div>
-
-      {/* Payment Button */}
+      {/* Simple Payment Button */}
       <Button
         onClick={onPayment}
-        disabled={!email || !validateEmail(email) || paymentStatus === "processing"}
+        disabled={paymentStatus === "processing"}
         className="w-full text-white font-semibold bg-tiber hover:bg-tiber/90 shadow-lg hover:shadow-xl transition-all duration-300"
         size="lg"
       >
@@ -164,7 +80,7 @@ export function PaymentSection({
         ) : (
           <>
             <CreditCard className="h-4 w-4 mr-2" />
-            Pay {quote.total_cost} {quote.currency} with Paystack
+            Pay {quote.total_cost} {quote.currency}
           </>
         )}
       </Button>

@@ -78,11 +78,64 @@ export function DownloadSection({ processedDocument, paymentData, documents, fea
     URL.revokeObjectURL(url)
   }
 
+  // Helper function to extract processed document from response (same logic as main app)
+  const extractProcessedDocument = (response: any): ProcessedDocument => {
+    // Format 1: { success: true, processed_document: {...} }
+    if (response.success && response.processed_document) {
+      return {
+        filename: response.processed_document.filename,
+        content: response.processed_document.content,
+        pages: response.processed_document.pages,
+        features_applied: response.processed_document.features_applied || [],
+        processing_time_seconds: response.processed_document.processing_time_seconds || 0,
+        from_cache: response.processed_document.from_cache || false,
+      }
+    }
+    
+    // Format 2: Direct document response { filename: "...", content: "...", pages: 123, ... }
+    if (response.filename && response.content && typeof response.pages === 'number') {
+      return {
+        filename: response.filename,
+        content: response.content,
+        pages: response.pages,
+        features_applied: response.features_applied || [],
+        processing_time_seconds: response.processing_time_seconds || 0,
+        from_cache: response.from_cache || false,
+      }
+    }
+
+    // Format 3: Check for base64 content without specific wrapper
+    if (response.content && (typeof response.content === 'string') && response.content.length > 100) {
+      return {
+        filename: response.filename || response.name || "processed_document.pdf",
+        content: response.content,
+        pages: response.pages || response.page_count || 1,
+        features_applied: response.features_applied || response.features || [],
+        processing_time_seconds: response.processing_time_seconds || response.processing_time || 0,
+        from_cache: response.from_cache || response.cached || false,
+      }
+    }
+
+    throw new Error(`Invalid response format. Expected document data with filename, content, and pages. Got response with keys: [${Object.keys(response).join(', ')}]`)
+  }
+
   const handleDownload = async () => {
     setIsDownloading(true)
 
     try {
-      // Prepare request body with payment verification
+      // First try to download using the already processed document
+      // If payment was successful, we should be able to download it directly
+      console.log("Attempting direct download from processed document...")
+      
+      if (processedDocument && processedDocument.content) {
+        downloadPDF(processedDocument.content, processedDocument.filename)
+        setDownloadComplete(true)
+        return
+      }
+
+      // Fallback: Make a new request with payment verification
+      console.log("Processed document not available, making new backend request...")
+      
       const requestBody = {
         documents: documents.map((doc) => ({
           filename: doc.filename,
@@ -109,18 +162,55 @@ export function DownloadSection({ processedDocument, paymentData, documents, fea
       })
 
       if (!response.ok) {
-        const errorResponse: BackendErrorResponse = await response.json()
-        throw new Error(errorResponse.detail || "Download failed")
+        let errorMessage = `HTTP ${response.status}: Download failed`
+        try {
+          const responseText = await response.text()
+          console.log("Raw error response:", responseText)
+          
+          // Try to parse as JSON
+          try {
+            const errorResponse: BackendErrorResponse = JSON.parse(responseText)
+            console.log("Parsed error response:", errorResponse)
+            errorMessage = errorResponse.detail || errorMessage
+          } catch {
+            // If it's not JSON, use the raw text
+            if (responseText) {
+              errorMessage = `${errorMessage}. Response: ${responseText.substring(0, 200)}`
+            }
+          }
+        } catch (readError) {
+          console.log("Could not read error response body")
+        }
+        throw new Error(errorMessage)
       }
 
-      const result: BackendSuccessResponse = await response.json()
+      // Handle success response with flexible parsing
+      let result
+      try {
+        const responseText = await response.text()
+        console.log("Raw download response length:", responseText.length)
+        console.log("Raw download response first 200 chars:", responseText.substring(0, 200))
+        
+        if (typeof responseText === 'string') {
+          result = JSON.parse(responseText)
+        } else {
+          result = responseText
+        }
+        
+        console.log("Download success response:", result)
+      } catch (parseError) {
+        console.error("Failed to parse download JSON response:", parseError)
+        throw new Error("Invalid JSON response from server")
+      }
 
-      if (result.success && result.processed_document) {
-        // Download the verified processed document
-        downloadPDF(result.processed_document.content, result.processed_document.filename)
+      try {
+        const processedDoc = extractProcessedDocument(result)
+        downloadPDF(processedDoc.content, processedDoc.filename)
         setDownloadComplete(true)
-      } else {
-        throw new Error("Invalid response format")
+      } catch (extractError) {
+        console.error("Download response format error:", result)
+        console.error("Extraction error:", extractError)
+        throw extractError
       }
     } catch (error) {
       console.error("Download error:", error)

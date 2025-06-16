@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
+import toast, { Toaster } from "react-hot-toast"
 import { FileUpload } from "@/components/file-upload"
 import { ProcessingOptions } from "@/components/processing-options"
 import { ProcessingStatus } from "@/components/processing-status"
 import { PDFPreview } from "@/components/pdf-preview"
-import { CostCalculator } from "@/components/cost-calculator"
-import { PaymentSection } from "@/components/payment-section"
 import { DownloadSection } from "@/components/download-section"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Footer } from "@/components/footer"
 
 interface Document {
@@ -17,6 +18,7 @@ interface Document {
   content: string
   order: number
   file: File
+  pageCount: number
 }
 
 interface ProcessingFeatures {
@@ -48,7 +50,7 @@ interface PaymentData {
   message: string
 }
 
-// Backend API response types
+// Backend API response types - Supporting multiple formats
 interface BackendSuccessResponse {
   success: true
   processed_document: {
@@ -61,8 +63,20 @@ interface BackendSuccessResponse {
   }
 }
 
+// Alternative response format - direct document response
+interface DirectDocumentResponse {
+  filename: string
+  content: string
+  pages: number
+  features_applied: string[]
+  processing_time_seconds: number
+  from_cache: boolean
+}
+
 interface BackendErrorResponse {
   detail: string
+  error?: string
+  message?: string
 }
 
 export default function Home() {
@@ -77,17 +91,65 @@ export default function Home() {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "failed">("idle")
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [email, setEmail] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [downloadTimer, setDownloadTimer] = useState<number>(0)
+  const [showDownloadButton, setShowDownloadButton] = useState(false)
+  const [autoDownloadFailed, setAutoDownloadFailed] = useState(false)
+
+  // Auto-download function
+  const autoDownload = async () => {
+    if (!processedDocument || !paymentData) return
+    
+    try {
+      console.log("Starting auto-download...")
+      const byteCharacters = atob(processedDocument.content)
+      const byteArray = new Uint8Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i)
+      }
+      const blob = new Blob([byteArray], { type: "application/pdf" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = processedDocument.filename
+      a.click()
+      URL.revokeObjectURL(url)
+      
+      toast.success("Download started successfully!")
+      setAutoDownloadFailed(false)
+    } catch (error) {
+      console.error("Auto-download failed:", error)
+      toast.error("Auto-download failed. Use the download button instead.")
+      setAutoDownloadFailed(true)
+    }
+  }
+
+  // Download timer effect - now triggers auto-download
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    
+    if (downloadTimer > 0) {
+      interval = setInterval(() => {
+        setDownloadTimer((prev) => {
+          if (prev <= 1) {
+            // Timer finished - trigger auto-download
+            autoDownload()
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [downloadTimer, processedDocument, paymentData])
 
   const handleFilesSelected = useCallback(
     (files: Document[]) => {
       setDocuments(files)
-      setProcessedDocument(null)
-      setQuote(null)
-      setPaymentData(null)
-      setPaymentStatus("idle")
+      // Don't clear processed document here - let user decide with back button
       setError(null)
 
       // Generate quote immediately when files are selected
@@ -111,9 +173,8 @@ export default function Home() {
   )
 
   const generateQuote = (docs: Document[], selectedFeatures: ProcessingFeatures) => {
-    // Calculate total pages (estimate 10 pages per PDF for demo)
-    const estimatedPagesPerPdf = 10
-    const totalPages = docs.length * estimatedPagesPerPdf
+    // Calculate total pages from actual page counts
+    const totalPages = docs.reduce((sum, doc) => sum + doc.pageCount, 0)
 
     // Count selected features
     const selectedFeaturesCount = Object.values(selectedFeatures).filter(Boolean).length
@@ -125,7 +186,7 @@ export default function Home() {
       total_pages: totalPages,
       total_cost: totalCost,
       currency: "KSH",
-      cost_breakdown: `${docs.length} documents × ${estimatedPagesPerPdf} pages × ${selectedFeaturesCount} features × 1 KSH`,
+      cost_breakdown: `${totalPages} pages × ${selectedFeaturesCount} features × 1 KSH`,
     }
 
     setQuote(newQuote)
@@ -139,9 +200,12 @@ export default function Home() {
 
     setIsProcessing(true)
     setError(null)
+    const startTime = Date.now()
 
     try {
-      console.log("Processing documents...")
+      console.log("🚀 Processing documents...")
+      console.log("Documents count:", documents.length)
+      console.log("Features:", features)
 
       // Prepare request body in the exact format your backend expects
       const requestBody = {
@@ -157,56 +221,136 @@ export default function Home() {
         },
       }
 
-      console.log("Request body:", requestBody)
+      console.log("Request body structure:", {
+        documentsCount: requestBody.documents.length,
+        features: requestBody.features,
+        firstDocumentInfo: requestBody.documents[0] ? {
+          filename: requestBody.documents[0].filename,
+          contentLength: requestBody.documents[0].content.length,
+          order: requestBody.documents[0].order
+        } : null
+      })
+
+      // Optimized fetch with shorter timeout for faster responses
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout - more reasonable
 
       const response = await fetch("https://web-production-fb32b.up.railway.app/api/process", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json",
         },
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
       })
 
-      console.log("Response status:", response.status)
+      clearTimeout(timeoutId)
+      const responseTime = Date.now() - startTime
+      console.log(`⚡ Response received in ${responseTime}ms (${response.status})`)
 
       if (!response.ok) {
         // Handle error response
-        const errorResponse: BackendErrorResponse = await response.json()
-        console.log("Error response:", errorResponse)
-        throw new Error(errorResponse.detail || `HTTP ${response.status}: Processing failed`)
+        let errorMessage = `HTTP ${response.status}: Processing failed`
+        try {
+          const responseText = await response.text()
+          console.log("Raw error response:", responseText)
+          
+          // Try to parse as JSON
+          try {
+            const errorResponse: BackendErrorResponse = JSON.parse(responseText)
+            console.log("Parsed error response:", errorResponse)
+            errorMessage = errorResponse.detail || errorResponse.error || errorResponse.message || errorMessage
+          } catch {
+            // If it's not JSON, use the raw text
+            if (responseText) {
+              errorMessage = `${errorMessage}. Response: ${responseText.substring(0, 200)}`
+            }
+          }
+        } catch (readError) {
+          console.log("Could not read error response body")
+        }
+        throw new Error(errorMessage)
       }
 
-      // Handle success response
-      const result: BackendSuccessResponse = await response.json()
-      console.log("Success response:", result)
+      // Handle success response - support multiple formats
+      let result
+      try {
+        const responseText = await response.text()
+        console.log("Raw response text length:", responseText.length)
+        console.log("Raw response first 200 chars:", responseText.substring(0, 200))
+        
+        // Check if the response is already parsed or if it's a string
+        if (typeof responseText === 'string') {
+          result = JSON.parse(responseText)
+          console.log("Parsed JSON from string response")
+        } else {
+          result = responseText
+          console.log("Response was already parsed")
+        }
+        
+        console.log("Final result type:", typeof result)
+        console.log("Result is array:", Array.isArray(result))
+        
+        if (result && typeof result === 'object' && !Array.isArray(result)) {
+          console.log("Response keys:", Object.keys(result))
+          console.log("Has success property:", 'success' in result)
+          console.log("Has processed_document property:", 'processed_document' in result)
+        } else {
+          console.log("Result value:", result)
+        }
+        
+        console.log("Success response:", result)
+      } catch (parseError) {
+        console.error("Failed to parse JSON response:", parseError)
+        console.error("Response text that failed to parse:", responseText)
+        throw new Error("Invalid JSON response from server")
+      }
 
-      if (result.success && result.processed_document) {
-        setProcessedDocument({
-          filename: result.processed_document.filename,
-          content: result.processed_document.content,
-          pages: result.processed_document.pages,
-          features_applied: result.processed_document.features_applied,
-          processing_time_seconds: result.processed_document.processing_time_seconds,
-          from_cache: result.processed_document.from_cache,
-        })
-        console.log("✅ Processing successful!")
-      } else {
-        throw new Error("Invalid response format: missing success or processed_document")
+      try {
+        console.log("Before extraction - result type:", typeof result)
+        console.log("Before extraction - is array:", Array.isArray(result))
+        console.log("Before extraction - is object:", typeof result === 'object' && result !== null)
+        
+        if (typeof result === 'string') {
+          console.log("Result is still a string, attempting to parse it again...")
+          result = JSON.parse(result)
+          console.log("Re-parsed result type:", typeof result)
+        }
+        
+        const processedDoc = extractProcessedDocument(result)
+        setProcessedDocument(processedDoc)
+        const totalTime = Date.now() - startTime
+        console.log(`✅ Processing completed in ${totalTime}ms`)
+        toast.success(`Documents processed in ${totalTime}ms!`)
+      } catch (extractError) {
+        // Log the actual response for debugging
+        console.error("Unexpected response format:", result)
+        console.error("Extraction error:", extractError)
+        throw extractError
       }
     } catch (err) {
       console.error("❌ Processing error:", err)
-      setError(err instanceof Error ? err.message : "An error occurred during processing")
+      let errorMessage = "An error occurred during processing"
+      
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          errorMessage = "Request timed out. Please try again."
+        } else if (err.message.includes('fetch')) {
+          errorMessage = "Network error. Please check your connection and try again."
+        } else {
+          errorMessage = err.message
+        }
+      }
+      
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setIsProcessing(false)
     }
   }
 
   const initiatePayment = async () => {
-    if (!email || !validateEmail(email)) {
-      setError("Please enter a valid email address")
-      return
-    }
-
     if (!quote) {
       setError("Quote not available")
       return
@@ -216,27 +360,33 @@ export default function Home() {
     setError(null)
 
     try {
-      // Initialize Paystack payment
-      const paymentData = {
-        email: email,
-        amount: quote.total_cost * 100, // Paystack expects amount in kobo (multiply by 100)
+      // Import and use Paystack directly
+      const { default: PaystackPop } = await import("@paystack/inline-js")
+      
+      const popup = new PaystackPop()
+      
+      // Use a default email - user will enter their details in the Paystack popup
+      const defaultEmail = "customer@polihive.com"
+      
+      // Use the simpler newTransaction method
+      popup.newTransaction({
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || "pk_test_your_public_key_here",
+        email: defaultEmail, // Paystack popup will let user enter their own email
+        amount: quote.total_cost * 100, // Paystack expects amount in kobo (KES cents)
         currency: "KES",
         metadata: {
-          documents: documents.map((doc) => ({ filename: doc.filename, order: doc.order })),
+          documents: documents.map((doc) => ({ 
+            filename: doc.filename, 
+            order: doc.order,
+            pageCount: doc.pageCount 
+          })),
           features: features,
-          phone_number: phoneNumber,
+          total_pages: quote.total_pages,
+          service: "PoliHive Document Processing"
         },
-      }
-
-      // Use Paystack Popup
-      const handler = (window as any).PaystackPop.setup({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || "pk_test_your_public_key_here",
-        email: paymentData.email,
-        amount: paymentData.amount,
-        currency: paymentData.currency,
-        metadata: paymentData.metadata,
         callback: (response: any) => {
           // Payment successful
+          console.log("Payment successful:", response)
           setPaymentData({
             payment_reference: response.reference,
             access_code: response.reference,
@@ -244,18 +394,52 @@ export default function Home() {
             message: "Payment successful",
           })
           setPaymentStatus("success")
+          setDownloadTimer(3) // Start 3-second countdown for auto-download
+          setAutoDownloadFailed(false)
+          toast.success("Payment successful! Download starting in 3 seconds...", { duration: 3000 })
         },
         onClose: () => {
-          // Payment cancelled
+          // Payment cancelled or failed
           setPaymentStatus("failed")
-          setError("Payment was cancelled")
+          setError("Payment was cancelled or failed")
+          toast.error("Payment was cancelled")
         },
       })
 
-      handler.openIframe()
     } catch (err) {
+      console.error("Payment error:", err)
       setError(err instanceof Error ? err.message : "Payment initiation failed")
       setPaymentStatus("failed")
+      toast.error("Payment initiation failed")
+    }
+  }
+
+  // Manual download function for the download button
+  const handleManualDownload = async () => {
+    if (!processedDocument || !paymentData) {
+      toast.error("No processed document available for download")
+      return
+    }
+    
+    try {
+      console.log("Starting manual download...")
+      const byteCharacters = atob(processedDocument.content)
+      const byteArray = new Uint8Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i)
+      }
+      const blob = new Blob([byteArray], { type: "application/pdf" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = processedDocument.filename
+      a.click()
+      URL.revokeObjectURL(url)
+      
+      toast.success("Download started!")
+    } catch (error) {
+      console.error("Manual download failed:", error)
+      toast.error("Download failed. Please try again or contact support.")
     }
   }
 
@@ -264,137 +448,225 @@ export default function Home() {
     return emailRegex.test(email)
   }
 
-  const validatePhoneNumber = (phone: string): boolean => {
-    const kenyanPhoneRegex = /^(254|0)[17]\d{8}$/
-    return kenyanPhoneRegex.test(phone.replace(/[^\d]/g, ""))
+  // Helper function to validate and extract processed document from response
+  const extractProcessedDocument = (response: any): ProcessedDocument => {
+    // Format 1: { success: true, processed_document: {...} }
+    if (response.success && response.processed_document) {
+      return {
+        filename: response.processed_document.filename,
+        content: response.processed_document.content,
+        pages: response.processed_document.pages,
+        features_applied: response.processed_document.features_applied || [],
+        processing_time_seconds: response.processed_document.processing_time_seconds || 0,
+        from_cache: response.processed_document.from_cache || false,
+      }
+    }
+    
+    // Format 2: Direct document response { filename: "...", content: "...", pages: 123, ... }
+    if (response.filename && response.content && typeof response.pages === 'number') {
+      return {
+        filename: response.filename,
+        content: response.content,
+        pages: response.pages,
+        features_applied: response.features_applied || [],
+        processing_time_seconds: response.processing_time_seconds || 0,
+        from_cache: response.from_cache || false,
+      }
+    }
+
+    // Format 3: Check if it's a nested structure with different key names
+    if (response.document && response.document.filename) {
+      return {
+        filename: response.document.filename,
+        content: response.document.content,
+        pages: response.document.pages || response.document.page_count || 0,
+        features_applied: response.document.features_applied || response.features || [],
+        processing_time_seconds: response.document.processing_time_seconds || response.processing_time || 0,
+        from_cache: response.document.from_cache || response.cached || false,
+      }
+    }
+
+    // Format 4: Check for common backend response variations
+    if (response.data && response.data.filename) {
+      return {
+        filename: response.data.filename,
+        content: response.data.content,
+        pages: response.data.pages || response.data.page_count || 0,
+        features_applied: response.data.features_applied || response.data.features || [],
+        processing_time_seconds: response.data.processing_time_seconds || response.data.processing_time || 0,
+        from_cache: response.data.from_cache || response.data.cached || false,
+      }
+    }
+
+    // Format 5: Check for direct response with different field names
+    if (response.file_content || response.pdf_content) {
+      return {
+        filename: response.filename || response.file_name || "processed_document.pdf",
+        content: response.file_content || response.pdf_content || response.content,
+        pages: response.pages || response.page_count || response.total_pages || 1,
+        features_applied: response.features_applied || response.applied_features || response.features || [],
+        processing_time_seconds: response.processing_time_seconds || response.processing_time || response.duration || 0,
+        from_cache: response.from_cache || response.cached || response.is_cached || false,
+      }
+    }
+
+    // Format 6: Check if response has base64 content without specific wrapper
+    if (response.content && (typeof response.content === 'string') && response.content.length > 100) {
+      return {
+        filename: response.filename || response.name || "processed_document.pdf",
+        content: response.content,
+        pages: response.pages || response.page_count || 1,
+        features_applied: response.features_applied || response.features || [],
+        processing_time_seconds: response.processing_time_seconds || response.processing_time || 0,
+        from_cache: response.from_cache || response.cached || false,
+      }
+    }
+
+    // Log detailed response structure for debugging
+    console.error("❌ Could not extract document from response:")
+    console.error("Response type:", typeof response)
+    console.error("Response is array:", Array.isArray(response))
+    
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      console.error("Response keys:", Object.keys(response))
+      console.error("Full response:", response)
+      
+      throw new Error(`Invalid response format. Expected document data with filename, content, and pages. 
+      
+Got response with keys: [${Object.keys(response).join(', ')}]
+Response: ${JSON.stringify(response, null, 2).substring(0, 500)}...`)
+    } else {
+      console.error("Response value:", response)
+      console.error("Response length:", response?.length)
+      
+      throw new Error(`Invalid response format. Expected object with document data but got ${typeof response}${Array.isArray(response) ? ' (array)' : ''}. 
+      
+Response: ${JSON.stringify(response).substring(0, 500)}...`)
+    }
   }
 
+
   return (
-    <div className="min-h-screen bg-cream font-satoshi">
+    <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white transition-colors flex flex-col">
       {/* Header */}
-      <header className="h-[30px] border-b border-tiber/10 bg-cream">
-        <div className="container mx-auto px-4 h-full flex items-center">
-          <h1 className="text-lg font-semibold text-tiber">PoliHive</h1>
+      <header className="bg-white dark:bg-black">
+        <div className="max-w-7xl mx-auto px-3 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">PoliHive</h1>
+            <p className="text-sm text-black/70 dark:text-white/70">Prepare court of appeal documents faster</p>
+          </div>
+          <ThemeToggle />
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="flex-1 max-w-7xl mx-auto px-3 py-6 w-full">
         {/* Main Content Area */}
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 mb-8">
-          {/* Document Upload - Center (3 columns) */}
-          <div className="xl:col-span-3">
-            <FileUpload onFilesSelected={handleFilesSelected} />
-          </div>
-
-          {/* Processing Options - Right (1 column) */}
-          <div>
-            <Card className="bg-white/80 backdrop-blur-sm border border-tiber/20 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-tiber">Processing Options</CardTitle>
-                <CardDescription className="text-sage">Select the features you need for your documents</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ProcessingOptions features={features} onChange={handleFeaturesChange} />
-              </CardContent>
-            </Card>
-
-            {/* Quote Display */}
-            {quote && (
-              <Card className="bg-white/80 backdrop-blur-sm border border-tiber/20 shadow-lg mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Document Upload/Preview - Left (2 columns) */}
+          <div className="lg:col-span-2">
+            {!processedDocument ? (
+              <FileUpload onFilesSelected={handleFilesSelected} />
+            ) : (
+              <Card className="bg-white dark:bg-black border border-black dark:border-white">
                 <CardHeader>
-                  <CardTitle className="text-tiber">Estimated Cost</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CostCalculator quote={quote} />
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* Process Button */}
-        <div className="flex justify-center mb-8">
-          <Button
-            onClick={processDocuments}
-            disabled={documents.length === 0 || isProcessing}
-            size="lg"
-            className="px-12 py-3 font-semibold text-white bg-tiber hover:bg-tiber/90 shadow-lg hover:shadow-xl transition-all duration-300"
-          >
-            {isProcessing ? "Processing Documents..." : "Process Documents"}
-          </Button>
-        </div>
-
-        {isProcessing && <ProcessingStatus />}
-
-        {error && (
-          <Card className="border-red-500/50 bg-red-50 mb-8">
-            <CardContent className="pt-6">
-              <p className="text-red-600">{error}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Preview & Payment Section */}
-        {processedDocument && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <Card className="bg-white/80 backdrop-blur-sm border border-tiber/20 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-tiber">Document Preview</CardTitle>
-                  <CardDescription className="text-sage">
-                    Free preview - Pay to download the processed document
-                  </CardDescription>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setProcessedDocument(null)
+                        setPaymentStatus("idle")
+                        setPaymentData(null)
+                        setError(null)
+                      }}
+                      className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 p-2"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <div>
+                      <CardTitle className="text-black dark:text-white">Document Preview</CardTitle>
+                      <CardDescription className="text-black/70 dark:text-white/70">
+                        Your processed document is ready
+                      </CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <PDFPreview document={processedDocument} />
                 </CardContent>
               </Card>
-            </div>
-
-            <div className="space-y-6">
-              <Card className="bg-white/80 backdrop-blur-sm border border-tiber/20 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-tiber">Payment</CardTitle>
-                  <CardDescription className="text-sage">
-                    Pay securely to download your processed document
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <PaymentSection
-                    quote={quote}
-                    phoneNumber={phoneNumber}
-                    onPhoneNumberChange={setPhoneNumber}
-                    email={email}
-                    onEmailChange={setEmail}
-                    onPayment={initiatePayment}
-                    paymentStatus={paymentStatus}
-                    paymentData={paymentData}
-                  />
-                </CardContent>
-              </Card>
-
-              {paymentStatus === "success" && paymentData && (
-                <Card className="bg-white/80 backdrop-blur-sm border border-tiber/20 shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="text-tiber">Download Document</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <DownloadSection
-                      processedDocument={processedDocument}
-                      paymentData={paymentData}
-                      documents={documents}
-                      features={features}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            )}
           </div>
+
+          {/* Processing Options - Right (1 column) */}
+          <div className="lg:col-span-1">
+            <Card className="bg-white dark:bg-black border border-black dark:border-white">
+              <CardHeader>
+                <CardTitle className="text-black dark:text-white">Processing Options</CardTitle>
+                <CardDescription className="text-black/70 dark:text-white/70">Select features and process your documents</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ProcessingOptions 
+                  features={features} 
+                  onChange={handleFeaturesChange}
+                  quote={quote}
+                  documentsCount={documents.length}
+                  onProcess={processDocuments}
+                  onPayment={initiatePayment}
+                  onDownload={handleManualDownload}
+                  isProcessing={isProcessing}
+                  hasProcessedDocument={!!processedDocument}
+                  paymentStatus={paymentStatus}
+                  downloadTimer={downloadTimer}
+                  autoDownloadFailed={autoDownloadFailed}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {error && (
+          <Card className="border-red-500 bg-red-50 dark:bg-red-950 mb-6">
+            <CardContent className="pt-4 pb-4">
+              <p className="text-red-700 dark:text-red-300">{error}</p>
+            </CardContent>
+          </Card>
         )}
+
       </div>
 
       {/* Footer */}
       <Footer />
+
+      {/* Fixed Processing Status */}
+      {isProcessing && <ProcessingStatus />}
+      
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: 'var(--toast-bg)',
+            color: 'var(--toast-color)',
+            border: '1px solid var(--toast-border)',
+          },
+          success: {
+            style: {
+              background: '#22c55e',
+              color: '#ffffff',
+              border: '1px solid #16a34a',
+            },
+          },
+          error: {
+            style: {
+              background: '#ef4444',
+              color: '#ffffff',
+              border: '1px solid #dc2626',
+            },
+          },
+        }}
+      />
     </div>
   )
 }
