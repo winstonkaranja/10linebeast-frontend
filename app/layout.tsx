@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css"
 import Script from "next/script"
 
@@ -28,6 +29,7 @@ export default function RootLayout({
           disableTransitionOnChange={false}
         >
           {children}
+          <SpeedInsights />
         </ThemeProvider>
       </body>
     </html>
