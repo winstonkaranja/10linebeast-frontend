@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --tiber: #184343;
+    --cream: #f7f9e9;
+    --sage: #607535;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans",
+      "Droid Sans", "Helvetica Neue", sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .font-satoshi {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans",
+      "Droid Sans", "Helvetica Neue", sans-serif;
+    font-weight: 500;
+  }
+}
+
+/* Custom Tiber theme colors */
+.bg-tiber {
+  background-color: #184343;
+}
+
+.bg-cream {
+  background-color: #f7f9e9;
+}
+
+.bg-sage {
+  background-color: #607535;
+}
+
+.text-tiber {
+  color: #184343;
+}
+
+.text-cream {
+  color: #f7f9e9;
+}
+
+.text-sage {
+  color: #607535;
+}
+
+.border-tiber {
+  border-color: #184343;
+}
+
+.border-sage {
+  border-color: #607535;
+}
+
+.hover\:bg-tiber:hover {
+  background-color: #184343;
+}
+
+.hover\:bg-tiber\/90:hover {
+  background-color: rgba(24, 67, 67, 0.9);
+}
+
+.hover\:text-white:hover {
+  color: #ffffff;
+}
