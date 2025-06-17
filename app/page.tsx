@@ -415,7 +415,7 @@ export default function Home() {
           amount: amountInKobo,
           currency: "KES",
           ref: 'TXN_' + Math.floor((Math.random() * 1000000000) + 1), // Generate unique reference
-          channels: ['card', 'bank'], // Start with basic channels that always work
+          channels: ['card', 'bank', 'mobile_money'], // Re-enable mobile money for testing
           metadata: {
             custom_fields: [
               {
@@ -449,6 +449,16 @@ export default function Home() {
             console.log("Payment window closed")
             setPaymentStatus("idle")
             toast.error("Payment was cancelled")
+          },
+          onError: function(error: any) {
+            // Handle payment errors gracefully
+            console.error("Payment error:", error)
+            setPaymentStatus("failed")
+            if (error.message && error.message.includes("mobile_money")) {
+              toast.error("Mobile money temporarily unavailable. Please try card or bank transfer.")
+            } else {
+              toast.error("Payment failed. Please try again.")
+            }
           }
         })
       }
