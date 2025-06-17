@@ -379,8 +379,10 @@ export default function Home() {
       
       const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
       
+      console.log("Paystack public key:", publicKey ? "Loaded successfully" : "MISSING")
+      
       if (!publicKey) {
-        throw new Error("Paystack public key is not configured")
+        throw new Error("Paystack public key is not configured. Check your .env file and restart the dev server.")
       }
       
       // Validate payment amount
@@ -413,6 +415,7 @@ export default function Home() {
           amount: amountInKobo,
           currency: "KES",
           ref: 'TXN_' + Math.floor((Math.random() * 1000000000) + 1), // Generate unique reference
+          channels: ['card', 'bank'], // Start with basic channels that always work
           metadata: {
             custom_fields: [
               {
@@ -498,10 +501,6 @@ export default function Home() {
     }
   }
 
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
-  }
 
   // Helper function to validate and extract processed document from response
   const extractProcessedDocument = (response: any): ProcessedDocument => {
