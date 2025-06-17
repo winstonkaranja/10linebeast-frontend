@@ -400,66 +400,62 @@ export default function Home() {
         email: defaultEmail,
         keyLength: publicKey.length,
         keyPrefix: publicKey.substring(0, 7) + "...",
+        keyFull: publicKey, // Temporary - remove this after debugging
         totalCost: quote.total_cost
       })
       
-      // Use the correct newTransaction method with proper callbacks
-      const paymentConfig = {
-        key: publicKey,
-        email: defaultEmail,
-        amount: amountInKobo, // Amount in kobo
-        currency: "KES",
-        metadata: {
-          documents: documents.map((doc) => ({ 
-            filename: doc.filename, 
-            order: doc.order,
-            pageCount: doc.pageCount 
-          })),
-          features: features,
-          total_pages: quote.total_pages,
-          service: "PoliHive Document Processing"
-        },
-        onSuccess: (transaction: any) => {
-          // Payment successful
-          console.log("Payment successful:", transaction)
-          try {
+      // Simple frontend-only Paystack popup configuration
+      const paymentHandler = () => {
+        const paystackPop = new PaystackPop()
+        paystackPop.newTransaction({
+          key: publicKey,
+          email: defaultEmail,
+          amount: amountInKobo,
+          currency: "KES",
+          ref: 'TXN_' + Math.floor((Math.random() * 1000000000) + 1), // Generate unique reference
+          metadata: {
+            custom_fields: [
+              {
+                display_name: "Documents",
+                variable_name: "documents",
+                value: documents.map(doc => doc.filename).join(", ")
+              },
+              {
+                display_name: "Features",
+                variable_name: "features", 
+                value: Object.keys(features).filter(key => features[key as keyof ProcessingFeatures]).join(", ")
+              }
+            ]
+          },
+          callback: function(response: any) {
+            // Payment successful
+            console.log("Payment successful:", response)
             setPaymentData({
-              payment_reference: transaction.reference,
-              access_code: transaction.reference,
+              payment_reference: response.reference,
+              access_code: response.reference,
               amount: quote.total_cost,
               message: "Payment successful",
             })
             setPaymentStatus("success")
-            setDownloadTimer(3) // Start 3-second countdown for auto-download
+            setDownloadTimer(3)
             setAutoDownloadFailed(false)
             toast.success("Payment successful! Download starting in 3 seconds...", { duration: 3000 })
-          } catch (error) {
-            console.error("Error handling successful payment:", error)
-            setError("Payment successful but failed to process. Please contact support.")
-          }
-        },
-        onCancel: () => {
-          // Payment cancelled
-          console.log("Payment cancelled by user")
-          setPaymentStatus("idle")
-          setError("Payment was cancelled by user")
-          toast.error("Payment was cancelled")
-        },
-        onClose: () => {
-          // Payment window closed
-          console.log("Payment window closed")
-          if (paymentStatus === "processing") {
+          },
+          onClose: function() {
+            // Payment cancelled or window closed
+            console.log("Payment window closed")
             setPaymentStatus("idle")
-            setError("Payment window was closed")
+            toast.error("Payment was cancelled")
           }
-        }
+        })
       }
       
-      console.log("About to call newTransaction with config:", paymentConfig)
+      console.log("About to initialize payment popup")
       
       try {
-        popup.newTransaction(paymentConfig)
-        console.log("newTransaction called successfully")
+        // Execute the payment handler
+        paymentHandler()
+        console.log("Payment popup initialized successfully")
       } catch (popupError) {
         console.error("Error calling newTransaction:", popupError)
         throw new Error(`Failed to initialize payment popup: ${popupError instanceof Error ? popupError.message : 'Unknown error'}`)
