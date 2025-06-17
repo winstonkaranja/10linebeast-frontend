@@ -303,7 +303,6 @@ export default function Home() {
         console.log("Success response:", result)
       } catch (parseError) {
         console.error("Failed to parse JSON response:", parseError)
-        console.error("Response text that failed to parse:", responseText)
         throw new Error("Invalid JSON response from server")
       }
 

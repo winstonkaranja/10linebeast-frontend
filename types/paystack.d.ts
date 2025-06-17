@@ -5,8 +5,9 @@ declare module '@paystack/inline-js' {
     amount: number;
     currency?: string;
     metadata?: Record<string, any>;
-    callback: (response: any) => void;
-    onClose: () => void;
+    onSuccess: (transaction: any) => void;
+    onCancel?: () => void;
+    onClose?: () => void;
   }
 
   interface PaystackResponse {
