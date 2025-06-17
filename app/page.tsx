@@ -360,29 +360,54 @@ export default function Home() {
 
     try {
       // Import and use Paystack directly
+      console.log("Loading Paystack library...")
       const PaystackPop = (await import("@paystack/inline-js")).default
       
       if (!PaystackPop) {
         throw new Error("Failed to load Paystack library")
       }
       
+      console.log("Creating Paystack popup instance...")
       const popup = new PaystackPop()
+      
+      if (!popup || typeof popup.newTransaction !== 'function') {
+        throw new Error("Paystack popup instance is invalid")
+      }
       
       // Use a default email - user will enter their details in the Paystack popup
       const defaultEmail = "customer@polihive.com"
       
+      const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
+      
+      if (!publicKey) {
+        throw new Error("Paystack public key is not configured")
+      }
+      
+      // Validate payment amount
+      const amountInKobo = Math.round(quote.total_cost * 100)
+      
+      if (amountInKobo < 100) {
+        throw new Error("Payment amount is too small (minimum 1 KES)")
+      }
+      
+      if (amountInKobo > 100000000) {
+        throw new Error("Payment amount is too large (maximum 1,000,000 KES)")
+      }
+      
       console.log("Initializing Paystack payment with:", {
-        amount: quote.total_cost * 100,
+        amount: amountInKobo,
         currency: "KES",
         email: defaultEmail,
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ? "Key loaded" : "Key missing"
+        keyLength: publicKey.length,
+        keyPrefix: publicKey.substring(0, 7) + "...",
+        totalCost: quote.total_cost
       })
       
       // Use the correct newTransaction method with proper callbacks
       const paymentConfig = {
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
+        key: publicKey,
         email: defaultEmail,
-        amount: quote.total_cost * 100, // Amount in kobo
+        amount: amountInKobo, // Amount in kobo
         currency: "KES",
         metadata: {
           documents: documents.map((doc) => ({ 
@@ -397,22 +422,27 @@ export default function Home() {
         onSuccess: (transaction: any) => {
           // Payment successful
           console.log("Payment successful:", transaction)
-          setPaymentData({
-            payment_reference: transaction.reference,
-            access_code: transaction.reference,
-            amount: quote.total_cost,
-            message: "Payment successful",
-          })
-          setPaymentStatus("success")
-          setDownloadTimer(3) // Start 3-second countdown for auto-download
-          setAutoDownloadFailed(false)
-          toast.success("Payment successful! Download starting in 3 seconds...", { duration: 3000 })
+          try {
+            setPaymentData({
+              payment_reference: transaction.reference,
+              access_code: transaction.reference,
+              amount: quote.total_cost,
+              message: "Payment successful",
+            })
+            setPaymentStatus("success")
+            setDownloadTimer(3) // Start 3-second countdown for auto-download
+            setAutoDownloadFailed(false)
+            toast.success("Payment successful! Download starting in 3 seconds...", { duration: 3000 })
+          } catch (error) {
+            console.error("Error handling successful payment:", error)
+            setError("Payment successful but failed to process. Please contact support.")
+          }
         },
         onCancel: () => {
           // Payment cancelled
-          console.log("Payment cancelled")
-          setPaymentStatus("failed")
-          setError("Payment was cancelled")
+          console.log("Payment cancelled by user")
+          setPaymentStatus("idle")
+          setError("Payment was cancelled by user")
           toast.error("Payment was cancelled")
         },
         onClose: () => {
@@ -420,12 +450,20 @@ export default function Home() {
           console.log("Payment window closed")
           if (paymentStatus === "processing") {
             setPaymentStatus("idle")
+            setError("Payment window was closed")
           }
         }
       }
       
       console.log("About to call newTransaction with config:", paymentConfig)
-      popup.newTransaction(paymentConfig)
+      
+      try {
+        popup.newTransaction(paymentConfig)
+        console.log("newTransaction called successfully")
+      } catch (popupError) {
+        console.error("Error calling newTransaction:", popupError)
+        throw new Error(`Failed to initialize payment popup: ${popupError instanceof Error ? popupError.message : 'Unknown error'}`)
+      }
 
     } catch (err) {
       console.error("Payment error:", err)
