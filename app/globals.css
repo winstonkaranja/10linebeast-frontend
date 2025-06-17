@@ -68,6 +68,21 @@
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    touch-action: manipulation;
+  }
+  
+  /* Mobile-specific optimizations */
+  @media (max-width: 768px) {
+    button, [role="button"], input[type="submit"], input[type="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Improve tap targets for small elements */
+    .checkbox-wrapper {
+      padding: 8px;
+      margin: -8px;
+    }
   }
 
   .font-satoshi {

@@ -133,7 +133,7 @@ export function ProcessingOptions({
                       checked={isChecked}
                       disabled={!isEnabled}
                       onCheckedChange={(checked) => isEnabled && handleFeatureChange(option.key, checked as boolean)}
-                      className={`w-4 h-4 ${
+                      className={`w-6 h-6 ${
                         isEnabled 
                           ? "border-black dark:border-white data-[state=checked]:bg-black dark:data-[state=checked]:bg-white data-[state=checked]:border-black dark:data-[state=checked]:border-white"
                           : "border-gray-300 dark:border-gray-600 opacity-50 cursor-not-allowed"

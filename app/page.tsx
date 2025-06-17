@@ -361,18 +361,29 @@ export default function Home() {
 
     try {
       // Import and use Paystack directly
-      const { default: PaystackPop } = await import("@paystack/inline-js")
+      const PaystackPop = (await import("@paystack/inline-js")).default
+      
+      if (!PaystackPop) {
+        throw new Error("Failed to load Paystack library")
+      }
       
       const popup = new PaystackPop()
       
       // Use a default email - user will enter their details in the Paystack popup
       const defaultEmail = "customer@polihive.com"
       
-      // Use the simpler newTransaction method
-      popup.newTransaction({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || "pk_test_your_public_key_here",
-        email: defaultEmail, // Paystack popup will let user enter their own email
-        amount: quote.total_cost * 100, // Paystack expects amount in kobo (KES cents)
+      console.log("Initializing Paystack payment with:", {
+        amount: quote.total_cost * 100,
+        currency: "KES",
+        email: defaultEmail,
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ? "Key loaded" : "Key missing"
+      })
+      
+      // Use the correct newTransaction method with proper callbacks
+      const paymentConfig = {
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
+        email: defaultEmail,
+        amount: quote.total_cost * 100, // Amount in kobo
         currency: "KES",
         metadata: {
           documents: documents.map((doc) => ({ 
@@ -384,12 +395,12 @@ export default function Home() {
           total_pages: quote.total_pages,
           service: "PoliHive Document Processing"
         },
-        callback: (response: any) => {
+        onSuccess: (transaction: any) => {
           // Payment successful
-          console.log("Payment successful:", response)
+          console.log("Payment successful:", transaction)
           setPaymentData({
-            payment_reference: response.reference,
-            access_code: response.reference,
+            payment_reference: transaction.reference,
+            access_code: transaction.reference,
             amount: quote.total_cost,
             message: "Payment successful",
           })
@@ -398,13 +409,24 @@ export default function Home() {
           setAutoDownloadFailed(false)
           toast.success("Payment successful! Download starting in 3 seconds...", { duration: 3000 })
         },
-        onClose: () => {
-          // Payment cancelled or failed
+        onCancel: () => {
+          // Payment cancelled
+          console.log("Payment cancelled")
           setPaymentStatus("failed")
-          setError("Payment was cancelled or failed")
+          setError("Payment was cancelled")
           toast.error("Payment was cancelled")
         },
-      })
+        onClose: () => {
+          // Payment window closed
+          console.log("Payment window closed")
+          if (paymentStatus === "processing") {
+            setPaymentStatus("idle")
+          }
+        }
+      }
+      
+      console.log("About to call newTransaction with config:", paymentConfig)
+      popup.newTransaction(paymentConfig)
 
     } catch (err) {
       console.error("Payment error:", err)
