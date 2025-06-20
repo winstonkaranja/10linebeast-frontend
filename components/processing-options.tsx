@@ -19,6 +19,24 @@ interface Quote {
   cost_breakdown: string
 }
 
+interface VolumeDocument {
+  volume_number: number
+  filename: string
+  content: string
+  pages: number
+  page_range: string
+}
+
+interface VolumeResponse {
+  document_type: 'volumes'
+  volume_count: number
+  total_pages: number
+  volumes: VolumeDocument[]
+  features_applied: string[]
+  processing_time_seconds: number
+  from_cache: boolean
+}
+
 interface ProcessingOptionsProps {
   features: ProcessingFeatures
   onChange: (features: ProcessingFeatures) => void
@@ -32,6 +50,7 @@ interface ProcessingOptionsProps {
   paymentStatus: "idle" | "processing" | "success" | "failed"
   downloadTimer: number
   autoDownloadFailed: boolean
+  volumeResponse?: VolumeResponse | null
 }
 
 export function ProcessingOptions({ 
@@ -46,7 +65,8 @@ export function ProcessingOptions({
   hasProcessedDocument, 
   paymentStatus,
   downloadTimer,
-  autoDownloadFailed
+  autoDownloadFailed,
+  volumeResponse
 }: ProcessingOptionsProps) {
   const handleFeatureChange = (feature: keyof ProcessingFeatures, checked: boolean) => {
     onChange({
@@ -228,7 +248,7 @@ export function ProcessingOptions({
                   size="lg"
                 >
                   <div className="animate-pulse mr-2 text-xl font-bold">{downloadTimer}</div>
-                  Auto-download starting...
+                  {volumeResponse ? 'ZIP download starting...' : 'Auto-download starting...'}
                 </Button>
               ) : (
                 <Button
@@ -237,7 +257,10 @@ export function ProcessingOptions({
                   size="lg"
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  Download {quote?.total_cost} {quote?.currency} Paid
+                  {volumeResponse 
+                    ? `📦 Download All ${volumeResponse.volume_count} Volumes (ZIP)` 
+                    : `Download Document`
+                  }
                 </Button>
               )}
               {autoDownloadFailed && downloadTimer === 0 && (
@@ -262,10 +285,17 @@ export function ProcessingOptions({
               ) : (
                 <>
                   <CreditCard className="h-4 w-4 mr-2" />
-                  Pay {quote?.total_cost} {quote?.currency}
+                  Pay {quote?.total_cost} {quote?.currency} via M-Pesa
                 </>
               )}
             </Button>
+          )}
+          
+          {/* M-Pesa Payment Info */}
+          {!hasProcessedDocument && paymentStatus === "idle" && (
+            <p className="text-xs text-center text-gray-600 dark:text-gray-400 mt-2">
+              💳 Primary: M-Pesa • Also accepts Cards & Bank Transfer
+            </p>
           )}
         </div>
       )}

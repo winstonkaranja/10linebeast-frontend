@@ -8,6 +8,9 @@ declare module '@paystack/inline-js' {
     metadata?: Record<string, any>;
     callback: (response: any) => void;
     onClose?: () => void;
+    channels?: string[];
+    preferred_channel?: string;
+    onError?: (error: any) => void;
   }
 
   interface PaystackResponse {

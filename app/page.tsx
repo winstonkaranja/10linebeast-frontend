@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react"
 import toast, { Toaster } from "react-hot-toast"
+import JSZip from "jszip"
 import { FileUpload } from "@/components/file-upload"
 import { ProcessingOptions } from "@/components/processing-options"
 import { ProcessingStatus } from "@/components/processing-status"
@@ -31,6 +32,24 @@ interface ProcessedDocument {
   filename: string
   content: string
   pages: number
+  features_applied: string[]
+  processing_time_seconds: number
+  from_cache: boolean
+}
+
+interface VolumeDocument {
+  volume_number: number
+  filename: string
+  content: string
+  pages: number
+  page_range: string
+}
+
+interface VolumeResponse {
+  document_type: 'volumes'
+  volume_count: number
+  total_pages: number
+  volumes: VolumeDocument[]
   features_applied: string[]
   processing_time_seconds: number
   from_cache: boolean
@@ -88,6 +107,7 @@ export default function Home() {
   })
   const [isProcessing, setIsProcessing] = useState(false)
   const [processedDocument, setProcessedDocument] = useState<ProcessedDocument | null>(null)
+  const [volumeResponse, setVolumeResponse] = useState<VolumeResponse | null>(null)
   const [quote, setQuote] = useState<Quote | null>(null)
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "failed">("idle")
@@ -96,26 +116,68 @@ export default function Home() {
   const [showDownloadButton, setShowDownloadButton] = useState(false)
   const [autoDownloadFailed, setAutoDownloadFailed] = useState(false)
 
-  // Auto-download function
+  // Function to download multiple volumes as a ZIP file
+  const downloadVolumesAsZip = async (volumes: VolumeDocument[]) => {
+    const zip = new JSZip()
+    
+    // Add each volume to the ZIP
+    for (const volume of volumes) {
+      try {
+        const byteCharacters = atob(volume.content)
+        const byteArray = new Uint8Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteArray[i] = byteCharacters.charCodeAt(i)
+        }
+        zip.file(volume.filename, byteArray)
+      } catch (error) {
+        console.error(`Failed to add volume ${volume.volume_number} to ZIP:`, error)
+        throw new Error(`Failed to process volume ${volume.volume_number}`)
+      }
+    }
+    
+    // Generate ZIP file and download
+    try {
+      const zipBlob = await zip.generateAsync({ type: "blob" })
+      const url = URL.createObjectURL(zipBlob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `court_volumes_${volumes.length}_volumes.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Failed to generate ZIP file:", error)
+      throw new Error("Failed to create ZIP file")
+    }
+  }
+
+  // Auto-download function - handles both single documents and volumes
   const autoDownload = async () => {
-    if (!processedDocument || !paymentData) return
+    if ((!processedDocument && !volumeResponse) || !paymentData) return
     
     try {
       console.log("Starting auto-download...")
-      const byteCharacters = atob(processedDocument.content)
-      const byteArray = new Uint8Array(byteCharacters.length)
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteArray[i] = byteCharacters.charCodeAt(i)
-      }
-      const blob = new Blob([byteArray], { type: "application/pdf" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = processedDocument.filename
-      a.click()
-      URL.revokeObjectURL(url)
       
-      toast.success("Download started successfully!")
+      if (volumeResponse) {
+        // Download all volumes as ZIP
+        await downloadVolumesAsZip(volumeResponse.volumes)
+        toast.success("All volumes downloaded as ZIP!")
+      } else if (processedDocument) {
+        // Single document download
+        const byteCharacters = atob(processedDocument.content)
+        const byteArray = new Uint8Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteArray[i] = byteCharacters.charCodeAt(i)
+        }
+        const blob = new Blob([byteArray], { type: "application/pdf" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = processedDocument.filename
+        a.click()
+        URL.revokeObjectURL(url)
+        toast.success("Download started successfully!")
+      }
+      
       setAutoDownloadFailed(false)
     } catch (error) {
       console.error("Auto-download failed:", error)
@@ -144,7 +206,7 @@ export default function Home() {
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [downloadTimer, processedDocument, paymentData])
+  }, [downloadTimer, processedDocument, volumeResponse, paymentData])
 
   const handleFilesSelected = useCallback(
     (files: Document[]) => {
@@ -182,6 +244,14 @@ export default function Home() {
     // Calculate cost: 1 KSH per page per feature
     const totalCost = totalPages * selectedFeaturesCount
 
+    // Show volume estimation for large documents
+    if (totalPages > 500) {
+      const estimatedVolumes = Math.ceil(totalPages / 500)
+      toast.success(`Large document detected: Will create ${estimatedVolumes} court-compliant volumes`, {
+        duration: 4000
+      })
+    }
+
     const newQuote: Quote = {
       total_pages: totalPages,
       total_cost: totalCost,
@@ -206,6 +276,15 @@ export default function Home() {
       console.log("🚀 Processing documents...")
       console.log("Documents count:", documents.length)
       console.log("Features:", features)
+      
+      // Calculate total pages for progress messaging
+      const totalPages = documents.reduce((sum, doc) => sum + doc.pageCount, 0)
+      if (totalPages > 500) {
+        const estimatedVolumes = Math.ceil(totalPages / 500)
+        toast.success(`Processing ${totalPages} pages... will create ${estimatedVolumes} volumes`, {
+          duration: 6000
+        })
+      }
 
       // Prepare request body in the exact format your backend expects
       const requestBody = {
@@ -318,10 +397,20 @@ export default function Home() {
         }
         
         const processedDoc = extractProcessedDocument(result)
-        setProcessedDocument(processedDoc)
         const totalTime = Date.now() - startTime
-        console.log(`✅ Processing completed in ${totalTime}ms`)
-        toast.success(`Documents processed in ${totalTime}ms!`)
+        
+        // Handle volume response vs single document
+        if ('document_type' in processedDoc && processedDoc.document_type === 'volumes') {
+          setVolumeResponse(processedDoc as VolumeResponse)
+          setProcessedDocument(null)
+          console.log(`✅ Volume processing completed in ${totalTime}ms - ${processedDoc.volume_count} volumes created`)
+          toast.success(`Document split into ${processedDoc.volume_count} court-compliant volumes!`)
+        } else {
+          setProcessedDocument(processedDoc as ProcessedDocument)
+          setVolumeResponse(null)
+          console.log(`✅ Processing completed in ${totalTime}ms`)
+          toast.success(`Documents processed in ${totalTime}ms!`)
+        }
       } catch (extractError) {
         // Log the actual response for debugging
         console.error("Unexpected response format:", result)
@@ -415,7 +504,8 @@ export default function Home() {
           amount: amountInKobo,
           currency: "KES",
           ref: 'TXN_' + Math.floor((Math.random() * 1000000000) + 1), // Generate unique reference
-          channels: ['card', 'bank', 'mobile_money'], // Re-enable mobile money for testing
+          channels: ['mobile_money', 'card', 'bank'], // M-Pesa first, then other options
+          preferred_channel: 'mobile_money', // Set M-Pesa as default
           metadata: {
             custom_fields: [
               {
@@ -442,7 +532,11 @@ export default function Home() {
             setPaymentStatus("success")
             setDownloadTimer(3)
             setAutoDownloadFailed(false)
-            toast.success("Payment successful! Download starting in 3 seconds...", { duration: 3000 })
+            
+            const downloadMessage = volumeResponse 
+              ? `Payment successful! ZIP download starting in 3 seconds...`
+              : `Payment successful! Download starting in 3 seconds...`
+            toast.success(downloadMessage, { duration: 3000 })
           },
           onClose: function() {
             // Payment cancelled or window closed
@@ -455,7 +549,7 @@ export default function Home() {
             console.error("Payment error:", error)
             setPaymentStatus("failed")
             if (error.message && error.message.includes("mobile_money")) {
-              toast.error("Mobile money temporarily unavailable. Please try card or bank transfer.")
+              toast.error("M-Pesa payment failed. Please try again or use card/bank transfer.")
             } else {
               toast.error("Payment failed. Please try again.")
             }
@@ -484,27 +578,34 @@ export default function Home() {
 
   // Manual download function for the download button
   const handleManualDownload = async () => {
-    if (!processedDocument || !paymentData) {
+    if ((!processedDocument && !volumeResponse) || !paymentData) {
       toast.error("No processed document available for download")
       return
     }
     
     try {
       console.log("Starting manual download...")
-      const byteCharacters = atob(processedDocument.content)
-      const byteArray = new Uint8Array(byteCharacters.length)
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteArray[i] = byteCharacters.charCodeAt(i)
-      }
-      const blob = new Blob([byteArray], { type: "application/pdf" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = processedDocument.filename
-      a.click()
-      URL.revokeObjectURL(url)
       
-      toast.success("Download started!")
+      if (volumeResponse) {
+        // Download all volumes as ZIP
+        await downloadVolumesAsZip(volumeResponse.volumes)
+        toast.success("All volumes downloaded as ZIP!")
+      } else if (processedDocument) {
+        // Single document download
+        const byteCharacters = atob(processedDocument.content)
+        const byteArray = new Uint8Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteArray[i] = byteCharacters.charCodeAt(i)
+        }
+        const blob = new Blob([byteArray], { type: "application/pdf" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = processedDocument.filename
+        a.click()
+        URL.revokeObjectURL(url)
+        toast.success("Download started!")
+      }
     } catch (error) {
       console.error("Manual download failed:", error)
       toast.error("Download failed. Please try again or contact support.")
@@ -513,7 +614,19 @@ export default function Home() {
 
 
   // Helper function to validate and extract processed document from response
-  const extractProcessedDocument = (response: any): ProcessedDocument => {
+  const extractProcessedDocument = (response: any): ProcessedDocument | VolumeResponse => {
+    // Check for volume response format first
+    if (response.document_type === 'volumes' && response.volumes) {
+      return {
+        document_type: 'volumes',
+        volume_count: response.volume_count,
+        total_pages: response.total_pages,
+        volumes: response.volumes,
+        features_applied: response.features_applied || [],
+        processing_time_seconds: response.processing_time_seconds || 0,
+        from_cache: response.from_cache || false,
+      } as VolumeResponse
+    }
     // Format 1: { success: true, processed_document: {...} }
     if (response.success && response.processed_document) {
       return {
@@ -628,7 +741,7 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* Document Upload/Preview - Left (2 columns) */}
           <div className="lg:col-span-2">
-            {!processedDocument ? (
+            {!processedDocument && !volumeResponse ? (
               <FileUpload onFilesSelected={handleFilesSelected} />
             ) : (
               <Card className="bg-white dark:bg-black border border-black dark:border-white">
@@ -639,6 +752,7 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                       size="sm"
                       onClick={() => {
                         setProcessedDocument(null)
+                        setVolumeResponse(null)
                         setPaymentStatus("idle")
                         setPaymentData(null)
                         setError(null)
@@ -648,15 +762,67 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                       <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
-                      <CardTitle className="text-black dark:text-white">Document Preview</CardTitle>
+                      <CardTitle className="text-black dark:text-white">
+                        {volumeResponse ? "Court Volumes Ready" : "Document Preview"}
+                      </CardTitle>
                       <CardDescription className="text-black/70 dark:text-white/70">
-                        Your processed document is ready
+                        {volumeResponse 
+                          ? `Document split into ${volumeResponse.volume_count} court-compliant volumes`
+                          : "Your processed document is ready"
+                        }
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <PDFPreview document={processedDocument} />
+                  {volumeResponse ? (
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="font-medium text-blue-800 dark:text-blue-200">Volume Information</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-blue-600 dark:text-blue-400">Total Volumes:</span>
+                            <span className="ml-2 font-medium text-blue-800 dark:text-blue-200">{volumeResponse.volume_count}</span>
+                          </div>
+                          <div>
+                            <span className="text-blue-600 dark:text-blue-400">Total Pages:</span>
+                            <span className="ml-2 font-medium text-blue-800 dark:text-blue-200">{volumeResponse.total_pages}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-black dark:text-white">Volumes:</h4>
+                        <div className="space-y-2">
+                          {volumeResponse.volumes.map((volume) => (
+                            <div key={volume.volume_number} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                              <div>
+                                <span className="font-medium text-black dark:text-white">Volume {volume.volume_number}</span>
+                                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">({volume.page_range})</span>
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                {volume.pages} pages
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm text-green-700 dark:text-green-300">
+                            ✅ Court-ready: Each volume ≤500 pages - Perfect for court filing
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <PDFPreview document={processedDocument!} />
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -679,10 +845,11 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                   onPayment={initiatePayment}
                   onDownload={handleManualDownload}
                   isProcessing={isProcessing}
-                  hasProcessedDocument={!!processedDocument}
+                  hasProcessedDocument={!!processedDocument || !!volumeResponse}
                   paymentStatus={paymentStatus}
                   downloadTimer={downloadTimer}
                   autoDownloadFailed={autoDownloadFailed}
+                  volumeResponse={volumeResponse}
                 />
               </CardContent>
             </Card>
