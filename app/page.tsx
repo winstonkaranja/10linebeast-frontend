@@ -115,6 +115,7 @@ export default function Home() {
   const [downloadTimer, setDownloadTimer] = useState<number>(0)
   const [showDownloadButton, setShowDownloadButton] = useState(false)
   const [autoDownloadFailed, setAutoDownloadFailed] = useState(false)
+  const [isPreviewFullView, setIsPreviewFullView] = useState(false)
 
   // Function to download multiple volumes as a ZIP file
   const downloadVolumesAsZip = async (volumes: VolumeDocument[]) => {
@@ -738,9 +739,17 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
 
       <div className="flex-1 max-w-7xl mx-auto px-6 py-12 w-full">
         {/* Main Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Document Upload/Preview - Left (2 columns) */}
-          <div className="lg:col-span-2">
+        <div className={`grid gap-8 mb-8 apple-animation-smooth ${
+          isPreviewFullView 
+            ? 'grid-cols-1 xl:grid-cols-4' 
+            : 'grid-cols-1 lg:grid-cols-3'
+        }`}>
+          {/* Document Upload/Preview - Dynamic span based on view mode */}
+          <div className={`${
+            isPreviewFullView 
+              ? 'xl:col-span-3' 
+              : 'lg:col-span-2'
+          } apple-animation-smooth`}>
             {!processedDocument && !volumeResponse ? (
               <FileUpload onFilesSelected={handleFilesSelected} />
             ) : (
@@ -823,16 +832,26 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                       </div>
                     </div>
                   ) : (
-                    <PDFPreview document={processedDocument!} />
+                    <PDFPreview 
+                      document={processedDocument!} 
+                      isPaymentComplete={paymentStatus === "success"}
+                      onToggleFullView={setIsPreviewFullView}
+                    />
                   )}
                 </CardContent>
               </Card>
             )}
           </div>
 
-          {/* Processing Options - Right (1 column) */}
-          <div className="lg:col-span-1">
-            <Card className="animate-apple-fade-in sticky top-32">
+          {/* Processing Options - Dynamic sizing based on view mode */}
+          <div className={`${
+            isPreviewFullView 
+              ? 'xl:col-span-1' 
+              : 'lg:col-span-1'
+          } apple-animation-smooth`}>
+            <Card className={`animate-apple-fade-in sticky top-32 ${
+              isPreviewFullView ? 'xl:scale-95' : ''
+            } apple-animation-smooth`}>
               <CardHeader>
                 <CardTitle>Processing Options</CardTitle>
                 <CardDescription>Select features and process your documents</CardDescription>

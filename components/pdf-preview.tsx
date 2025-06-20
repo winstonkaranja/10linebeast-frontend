@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Eye, Clock, FileText } from "lucide-react"
+import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Eye, Clock, FileText, Maximize2, Minimize2 } from "lucide-react"
 
 interface ProcessedDocument {
   filename: string
@@ -17,11 +17,49 @@ interface ProcessedDocument {
 
 interface PDFPreviewProps {
   document: ProcessedDocument
+  isPaymentComplete?: boolean
+  onToggleFullView?: (isFullView: boolean) => void
 }
 
-export function PDFPreview({ document }: PDFPreviewProps) {
+export function PDFPreview({ document, isPaymentComplete = false, onToggleFullView }: PDFPreviewProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [zoom, setZoom] = useState(100)
+  const [isFullView, setIsFullView] = useState(false)
+  const [viewerHeight, setViewerHeight] = useState(600)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Calculate optimal viewer height based on available space
+  useEffect(() => {
+    const updateViewerHeight = () => {
+      if (containerRef.current && isFullView) {
+        const windowHeight = window.innerHeight
+        const headerHeight = 120 // Header + padding
+        const controlsHeight = 120 // Controls + margins
+        const availableHeight = windowHeight - headerHeight - controlsHeight
+        setViewerHeight(Math.max(400, availableHeight))
+      } else {
+        setViewerHeight(600)
+      }
+    }
+
+    updateViewerHeight()
+    window.addEventListener('resize', updateViewerHeight)
+    return () => window.removeEventListener('resize', updateViewerHeight)
+  }, [isFullView])
+
+  // Handle full view toggle
+  const handleToggleFullView = () => {
+    const newFullView = !isFullView
+    setIsFullView(newFullView)
+    onToggleFullView?.(newFullView)
+    
+    // Auto-adjust zoom for optimal viewing
+    if (newFullView) {
+      setZoom(85) // Slightly zoomed out for full page visibility
+    } else {
+      setZoom(100) // Default zoom for normal view
+    }
+  }
 
   // Create PDF blob URL from base64 content
   const createPdfUrl = () => {
@@ -45,127 +83,190 @@ export function PDFPreview({ document }: PDFPreviewProps) {
   const pdfUrl = createPdfUrl()
 
   return (
-    <div className="space-y-4">
-      {/* Document Info */}
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-black dark:text-white" />
-            <span className="font-medium text-black dark:text-white">{document.filename}</span>
+    <div ref={containerRef} className="space-y-6">
+      {/* Document Info - Compact Apple Style */}
+      <div className={`apple-glass p-4 rounded-2xl border border-border/50 transition-all duration-300 ${isFullView ? 'opacity-90' : 'opacity-100'}`}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <FileText className="h-4 w-4 text-primary" />
+              </div>
+              <span className="apple-text-body font-medium truncate">{document.filename}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="apple-text-caption">Pages:</span>
+              <Badge className="bg-primary text-primary-foreground">{document.pages}</Badge>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-black/70 dark:text-white/70">Pages:</span>
-            <Badge className="bg-black dark:bg-white text-white dark:text-black">{document.pages}</Badge>
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-black/70 dark:text-white/70" />
-            <span className="text-black/70 dark:text-white/70">Processed in:</span>
-            <span className="font-medium text-black dark:text-white">{document.processing_time_seconds}s</span>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {document.features_applied.map((feature) => (
-              <Badge key={feature} variant="outline" className="text-xs border-black dark:border-white text-black dark:text-white">
-                {feature.replace("_", " ")}
-              </Badge>
-            ))}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="apple-text-caption">Processed in:</span>
+              <span className="apple-text-body font-medium">{document.processing_time_seconds}s</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {document.features_applied.map((feature) => (
+                <Badge key={feature} variant="outline" className="apple-text-caption">
+                  {feature.replace("_", " ")}
+                </Badge>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Preview Controls */}
-      <div className="flex items-center justify-between p-4 bg-white/60 dark:bg-black/60 rounded-xl border border-black/20 dark:border-white/20">
-        <div className="flex items-center gap-2">
+      {/* Preview Controls - Apple Style */}
+      <div className="apple-glass p-4 rounded-2xl border border-border/50 flex flex-wrap items-center justify-between gap-4">
+        {/* Navigation Controls */}
+        <div className="flex items-center gap-3">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
             disabled={currentPage <= 1}
-            className="border-black dark:border-white text-black dark:text-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black"
+            className="apple-animation-smooth h-10 w-10"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-black dark:text-white">
-            Page {currentPage} of {document.pages}
-          </span>
+          <div className="apple-text-body font-medium px-3 py-1 bg-secondary/50 rounded-lg">
+            {currentPage} / {document.pages}
+          </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setCurrentPage(Math.min(document.pages, currentPage + 1))}
             disabled={currentPage >= document.pages}
-            className="border-black dark:border-white text-black dark:text-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black"
+            className="apple-animation-smooth h-10 w-10"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* View Controls */}
+        <div className="flex items-center gap-3">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={() => setZoom(Math.max(50, zoom - 25))}
+            onClick={() => setZoom(Math.max(50, zoom - 10))}
             disabled={zoom <= 50}
-            className="border-black dark:border-white text-black dark:text-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black"
+            className="apple-animation-smooth h-10 w-10"
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-black dark:text-white">{zoom}%</span>
+          <div className="apple-text-caption font-medium px-2 py-1 bg-secondary/30 rounded-md min-w-[50px] text-center">
+            {zoom}%
+          </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={() => setZoom(Math.min(200, zoom + 25))}
-            disabled={zoom >= 200}
-            className="border-black dark:border-white text-black dark:text-white hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black"
+            onClick={() => setZoom(Math.min(150, zoom + 10))}
+            disabled={zoom >= 150}
+            className="apple-animation-smooth h-10 w-10"
           >
             <ZoomIn className="h-4 w-4" />
+          </Button>
+          
+          {/* Full View Toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleToggleFullView}
+            className="apple-animation-smooth h-10 w-10"
+            title={isFullView ? "Exit full view" : "Enter full view"}
+          >
+            {isFullView ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
-      {/* PDF Preview with Hidden Controls */}
-      <Card className="relative bg-white dark:bg-black border border-black dark:border-white">
+      {/* PDF Preview - Enhanced Apple Style */}
+      <Card className="relative overflow-hidden apple-animation-smooth">
         <CardContent className="p-0">
-          <div className="relative overflow-hidden rounded-lg">
+          <div className="relative overflow-hidden">
             {document.content ? (
               <iframe
-                src={`${pdfUrl}#page=${currentPage}&zoom=${zoom}&toolbar=0&navpanes=0&scrollbar=0`}
-                className="w-full h-[600px] border-0 rounded-lg"
-                title="PDF Preview"
+                src={`${pdfUrl}#page=${currentPage}&zoom=${zoom}&toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                className="w-full border-0 apple-animation-smooth"
                 style={{
-                  pointerEvents: 'none', // Disable all interactions including right-click
-                  userSelect: 'none'
+                  height: `${viewerHeight}px`,
+                  pointerEvents: isPaymentComplete ? 'auto' : 'none',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  MozUserSelect: 'none',
                 }}
+                title="PDF Preview"
+                sandbox={isPaymentComplete ? "allow-same-origin allow-scripts" : "allow-same-origin"}
                 onLoad={() => console.log('PDF iframe loaded successfully')}
                 onError={() => console.error('PDF iframe failed to load')}
               />
             ) : (
-              <div className="w-full h-[600px] flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <div className="text-center space-y-2">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto" />
-                  <p className="text-gray-500">No PDF content available</p>
-                  <p className="text-xs text-gray-400">Content length: {document.content?.length || 0}</p>
+              <div 
+                className="w-full flex items-center justify-center bg-muted/30 rounded-2xl"
+                style={{ height: `${viewerHeight}px` }}
+              >
+                <div className="text-center space-y-4">
+                  <div className="p-4 bg-muted/50 rounded-2xl inline-block">
+                    <FileText className="h-12 w-12 text-muted-foreground mx-auto" />
+                  </div>
+                  <div>
+                    <p className="apple-text-body text-muted-foreground">No PDF content available</p>
+                    <p className="apple-text-caption text-muted-foreground/60">Content length: {document.content?.length || 0}</p>
+                  </div>
                 </div>
               </div>
             )}
-            {/* Overlay to prevent interaction */}
-            <div 
-              className="absolute inset-0 bg-transparent"
-              style={{ pointerEvents: 'auto' }}
-              onContextMenu={(e) => e.preventDefault()}
-            />
+
+            {/* Security Overlay - Only if payment not complete */}
+            {!isPaymentComplete && (
+              <div 
+                className="absolute inset-0 bg-transparent cursor-not-allowed"
+                style={{ 
+                  pointerEvents: 'auto',
+                  zIndex: 10,
+                }}
+                onContextMenu={(e) => e.preventDefault()}
+                onDragStart={(e) => e.preventDefault()}
+                onMouseDown={(e) => e.preventDefault()}
+              />
+            )}
+
             {/* Preview Watermark */}
-            <div className="absolute top-4 right-4 px-3 py-1 bg-black dark:bg-white text-white dark:text-black rounded-full text-sm font-medium shadow-lg pointer-events-none">
-              <Eye className="h-3 w-3 inline mr-1" />
-              Preview
+            <div className="absolute top-4 right-4 apple-glass px-4 py-2 rounded-full apple-text-caption font-medium shadow-lg pointer-events-none backdrop-blur-md">
+              <Eye className="h-3 w-3 inline mr-2" />
+              {isPaymentComplete ? 'Document' : 'Preview'}
             </div>
+
+            {/* Payment Lock Overlay */}
+            {!isPaymentComplete && (
+              <div className="absolute inset-x-4 bottom-4 apple-glass p-4 rounded-2xl border border-border/50 backdrop-blur-md pointer-events-none">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="p-2 bg-orange-500/20 rounded-xl">
+                    <Eye className="h-4 w-4 text-orange-600" />
+                  </div>
+                  <div className="text-center">
+                    <p className="apple-text-body font-medium text-orange-700 dark:text-orange-300">
+                      Secure Preview Mode
+                    </p>
+                    <p className="apple-text-caption text-orange-600 dark:text-orange-400">
+                      Complete payment to access full document functionality
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      <div className="text-center text-sm text-black/70 dark:text-white/70 bg-black/5 dark:bg-white/5 rounded-lg p-3">
-        🔒 This is a secure preview of your processed document. Complete payment to download the full document.
-      </div>
+      {/* Security Notice - Apple Style */}
+      {!isPaymentComplete && (
+        <div className="apple-glass p-4 rounded-2xl border border-border/50 text-center">
+          <p className="apple-text-body text-muted-foreground">
+            🔒 Secure preview of your processed document. Complete payment to unlock full access.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

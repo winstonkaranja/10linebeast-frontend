@@ -109,6 +109,16 @@ const config: Config = {
           "0%": { transform: "translateY(100%)" },
           "100%": { transform: "translateY(0)" },
         },
+        "apple-preview-expand": {
+          "0%": { transform: "scale(1)", opacity: "1" },
+          "50%": { transform: "scale(1.02)", opacity: "0.8" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
+        "apple-preview-collapse": {
+          "0%": { transform: "scale(1)", opacity: "1" },
+          "50%": { transform: "scale(0.98)", opacity: "0.8" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -116,6 +126,8 @@ const config: Config = {
         "apple-bounce": "apple-bounce 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
         "apple-fade-in": "apple-fade-in 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
         "apple-slide-up": "apple-slide-up 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        "apple-preview-expand": "apple-preview-expand 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+        "apple-preview-collapse": "apple-preview-collapse 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
       },
     },
   },

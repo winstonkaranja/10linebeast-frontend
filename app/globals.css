@@ -183,4 +183,16 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
+  
+  .apple-layout-transition {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .apple-preview-expand {
+    animation: apple-preview-expand 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .apple-preview-collapse {
+    animation: apple-preview-collapse 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
