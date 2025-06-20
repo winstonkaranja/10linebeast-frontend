@@ -20,9 +20,12 @@ const config: Config = {
     },
     extend: {
       colors: {
-        tiber: "#184343",
-        cream: "#f7f9e9",
-        sage: "#607535",
+        // Apple Design System Colors
+        apple: {
+          blue: "hsl(var(--apple-blue))",
+          gray: "hsl(var(--apple-gray))",
+          "gray-light": "hsl(var(--apple-gray-light))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -61,6 +64,29 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "1rem",
+        "2xl": "1.5rem",
+        "3xl": "2rem",
+      },
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem',
+      },
+      fontFamily: {
+        'sf-pro': ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'SF Pro Text', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        'xs': ['0.75rem', { lineHeight: '1.42857', letterSpacing: '-0.016em' }],
+        'sm': ['0.875rem', { lineHeight: '1.42857', letterSpacing: '-0.016em' }],
+        'base': ['1rem', { lineHeight: '1.47059', letterSpacing: '-0.022em' }],
+        'lg': ['1.125rem', { lineHeight: '1.38889', letterSpacing: '-0.017em' }],
+        'xl': ['1.25rem', { lineHeight: '1.38095', letterSpacing: '-0.017em' }],
+        '2xl': ['1.5rem', { lineHeight: '1.25', letterSpacing: '-0.022em' }],
+        '3xl': ['1.875rem', { lineHeight: '1.16667', letterSpacing: '-0.022em' }],
+      },
+      boxShadow: {
+        'apple': 'var(--apple-shadow)',
+        'apple-hover': 'var(--apple-shadow-hover)',
       },
       keyframes: {
         "accordion-down": {
@@ -71,10 +97,25 @@ const config: Config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "apple-bounce": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.05)" },
+        },
+        "apple-fade-in": {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "apple-slide-up": {
+          "0%": { transform: "translateY(100%)" },
+          "100%": { transform: "translateY(0)" },
+        },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        "accordion-down": "accordion-down 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        "accordion-up": "accordion-up 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        "apple-bounce": "apple-bounce 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
+        "apple-fade-in": "apple-fade-in 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+        "apple-slide-up": "apple-slide-up 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       },
     },
   },

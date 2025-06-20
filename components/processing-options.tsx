@@ -128,9 +128,9 @@ export function ProcessingOptions({
   }, [documentsCount, canMerge, onChange])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Processing Options */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         {options.map((option) => {
           const Icon = option.icon
           const isEnabled = option.enabled
@@ -139,58 +139,54 @@ export function ProcessingOptions({
           return (
             <Card
               key={option.key}
-              className={`border transition-all duration-200 ${
+              className={`apple-animation-smooth ${
                 isEnabled 
-                  ? "border-black dark:border-white bg-white dark:bg-black hover:bg-gray-50 dark:hover:bg-gray-900" 
-                  : "border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 opacity-60"
+                  ? "border-border/50 hover:border-primary/50 hover:bg-primary/5" 
+                  : "border-border/30 bg-muted/50 opacity-60"
               }`}
             >
-              <CardContent className="pt-3 pb-3">
-                <div className="flex items-start space-x-3">
-                  <div className="flex items-center gap-2">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-start space-x-4">
+                  <div className="flex items-center gap-3">
                     <Checkbox
                       id={option.key}
                       checked={isChecked}
                       disabled={!isEnabled}
                       onCheckedChange={(checked) => isEnabled && handleFeatureChange(option.key, checked as boolean)}
-                      className={`w-6 h-6 ${
+                      className={`w-5 h-5 apple-animation-smooth ${
                         isEnabled 
-                          ? "border-black dark:border-white data-[state=checked]:bg-black dark:data-[state=checked]:bg-white data-[state=checked]:border-black dark:data-[state=checked]:border-white"
-                          : "border-gray-300 dark:border-gray-600 opacity-50 cursor-not-allowed"
+                          ? "border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          : "border-muted-foreground/30 opacity-50 cursor-not-allowed"
                       }`}
                     />
-                    <div className={`p-1.5 rounded-lg ${
+                    <div className={`p-2 rounded-xl apple-animation-smooth ${
                       isEnabled 
-                        ? "bg-black dark:bg-white" 
-                        : "bg-gray-400 dark:bg-gray-600"
+                        ? "bg-primary/10 text-primary" 
+                        : "bg-muted text-muted-foreground"
                     }`}>
-                      <Icon className={`h-3 w-3 ${
-                        isEnabled 
-                          ? "text-white dark:text-black" 
-                          : "text-gray-200 dark:text-gray-400"
-                      }`} />
+                      <Icon className="h-4 w-4" />
                     </div>
                   </div>
                   <div className="flex-1">
                     <label 
                       htmlFor={option.key} 
-                      className={`text-sm font-semibold block mb-1 ${
+                      className={`apple-text-body font-semibold block mb-2 ${
                         isEnabled 
-                          ? "cursor-pointer text-black dark:text-white" 
-                          : "cursor-not-allowed text-gray-500 dark:text-gray-400"
+                          ? "cursor-pointer" 
+                          : "cursor-not-allowed text-muted-foreground"
                       }`}
                     >
                       {option.label}
                       {!isEnabled && option.key === "merge_pdfs" && (
-                        <span className="ml-2 text-xs font-normal text-orange-600 dark:text-orange-400">
+                        <span className="ml-2 apple-text-caption font-normal text-orange-600 dark:text-orange-400">
                           (Upload more files)
                         </span>
                       )}
                     </label>
-                    <p className={`text-xs ${
+                    <p className={`apple-text-caption ${
                       isEnabled 
-                        ? "text-black/70 dark:text-white/70" 
-                        : "text-gray-400 dark:text-gray-500"
+                        ? "text-muted-foreground" 
+                        : "text-muted-foreground/60"
                     }`}>
                       {option.description}
                     </p>
@@ -204,13 +200,13 @@ export function ProcessingOptions({
 
       {/* Real-time Cost Display */}
       {quote && documentsCount > 0 && (
-        <Card className="bg-gray-50 dark:bg-gray-900 border border-black dark:border-white">
-          <CardContent className="pt-4 pb-4">
+        <Card className="apple-glass border-primary/20 bg-primary/5">
+          <CardContent className="pt-6 pb-6">
             <div className="text-center">
-              <div className="text-2xl font-bold text-black dark:text-white mb-1">
+              <div className="text-3xl font-bold mb-2 apple-text-title text-primary">
                 {quote.total_cost} {quote.currency}
               </div>
-              <p className="text-xs text-black/70 dark:text-white/70">{quote.cost_breakdown}</p>
+              <p className="apple-text-caption">{quote.cost_breakdown}</p>
             </div>
           </CardContent>
         </Card>
@@ -218,18 +214,19 @@ export function ProcessingOptions({
 
       {/* Action Button */}
       {documentsCount > 0 && (
-        <div className="pt-2">
+        <div className="pt-4">
           {!hasProcessedDocument ? (
             // Process Documents Button
             <Button
               onClick={onProcess}
               disabled={isProcessing}
-              className="w-full text-white dark:text-black font-semibold bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 transition-all duration-300"
+              variant="apple"
               size="lg"
+              className="w-full font-semibold"
             >
               {isProcessing ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white dark:border-black mr-2"></div>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Processing Documents...
                 </>
               ) : (
@@ -244,7 +241,7 @@ export function ProcessingOptions({
               {downloadTimer > 0 ? (
                 <Button
                   disabled={true}
-                  className="w-full text-white font-semibold bg-blue-600 cursor-not-allowed transition-all duration-300"
+                  className="w-full font-semibold bg-blue-500/20 text-blue-700 dark:text-blue-300 cursor-not-allowed rounded-2xl"
                   size="lg"
                 >
                   <div className="animate-pulse mr-2 text-xl font-bold">{downloadTimer}</div>
@@ -253,7 +250,8 @@ export function ProcessingOptions({
               ) : (
                 <Button
                   onClick={onDownload}
-                  className="w-full text-white font-semibold bg-green-600 hover:bg-green-700 transition-all duration-300"
+                  variant="apple"
+                  className="w-full font-semibold bg-green-500 hover:bg-green-600"
                   size="lg"
                 >
                   <Download className="h-4 w-4 mr-2" />
@@ -264,7 +262,7 @@ export function ProcessingOptions({
                 </Button>
               )}
               {autoDownloadFailed && downloadTimer === 0 && (
-                <p className="text-xs text-center text-red-600 dark:text-red-400">
+                <p className="apple-text-caption text-center text-red-600 dark:text-red-400">
                   Auto-download failed. Please use the download button above.
                 </p>
               )}
@@ -274,7 +272,8 @@ export function ProcessingOptions({
             <Button
               onClick={onPayment}
               disabled={paymentStatus === "processing"}
-              className="w-full text-white font-semibold bg-green-600 hover:bg-green-700 transition-all duration-300"
+              variant="apple"
+              className="w-full font-semibold bg-green-500 hover:bg-green-600"
               size="lg"
             >
               {paymentStatus === "processing" ? (
@@ -293,7 +292,7 @@ export function ProcessingOptions({
           
           {/* M-Pesa Payment Info */}
           {!hasProcessedDocument && paymentStatus === "idle" && (
-            <p className="text-xs text-center text-gray-600 dark:text-gray-400 mt-2">
+            <p className="apple-text-caption text-center text-muted-foreground mt-3">
               💳 Primary: M-Pesa • Also accepts Cards & Bank Transfer
             </p>
           )}

@@ -724,32 +724,32 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
 
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white transition-colors flex flex-col">
+    <div className="min-h-screen bg-background text-foreground apple-animation-smooth flex flex-col">
       {/* Header */}
-      <header className="bg-white dark:bg-black">
-        <div className="max-w-7xl mx-auto px-3 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">PoliHive</h1>
-            <p className="text-sm text-black/70 dark:text-white/70">Prepare court of appeal documents faster</p>
+      <header className="apple-glass border-b border-border/50 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
+          <div className="animate-apple-fade-in">
+            <h1 className="apple-text-title font-sf-pro">PoliHive</h1>
+            <p className="apple-text-caption">Prepare court of appeal documents faster</p>
           </div>
           <ThemeToggle />
         </div>
       </header>
 
-      <div className="flex-1 max-w-7xl mx-auto px-3 py-6 w-full">
+      <div className="flex-1 max-w-7xl mx-auto px-6 py-12 w-full">
         {/* Main Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Document Upload/Preview - Left (2 columns) */}
           <div className="lg:col-span-2">
             {!processedDocument && !volumeResponse ? (
               <FileUpload onFilesSelected={handleFilesSelected} />
             ) : (
-              <Card className="bg-white dark:bg-black border border-black dark:border-white">
+              <Card className="animate-apple-fade-in">
                 <CardHeader>
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-4 mb-3">
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon"
                       onClick={() => {
                         setProcessedDocument(null)
                         setVolumeResponse(null)
@@ -757,15 +757,15 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                         setPaymentData(null)
                         setError(null)
                       }}
-                      className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 p-2"
+                      className="apple-animation-smooth"
                     >
-                      <ArrowLeft className="h-4 w-4" />
+                      <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div>
-                      <CardTitle className="text-black dark:text-white">
+                      <CardTitle>
                         {volumeResponse ? "Court Volumes Ready" : "Document Preview"}
                       </CardTitle>
-                      <CardDescription className="text-black/70 dark:text-white/70">
+                      <CardDescription>
                         {volumeResponse 
                           ? `Document split into ${volumeResponse.volume_count} court-compliant volumes`
                           : "Your processed document is ready"
@@ -776,45 +776,47 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                 </CardHeader>
                 <CardContent>
                   {volumeResponse ? (
-                    <div className="space-y-4">
-                      <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span className="font-medium text-blue-800 dark:text-blue-200">Volume Information</span>
+                    <div className="space-y-6">
+                      <div className="apple-glass p-6 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-3 h-3 bg-primary rounded-full animate-pulse"></div>
+                          <span className="apple-text-body font-medium">Volume Information</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="grid grid-cols-2 gap-6">
                           <div>
-                            <span className="text-blue-600 dark:text-blue-400">Total Volumes:</span>
-                            <span className="ml-2 font-medium text-blue-800 dark:text-blue-200">{volumeResponse.volume_count}</span>
+                            <span className="apple-text-caption">Total Volumes:</span>
+                            <span className="ml-2 font-semibold apple-text-body">{volumeResponse.volume_count}</span>
                           </div>
                           <div>
-                            <span className="text-blue-600 dark:text-blue-400">Total Pages:</span>
-                            <span className="ml-2 font-medium text-blue-800 dark:text-blue-200">{volumeResponse.total_pages}</span>
+                            <span className="apple-text-caption">Total Pages:</span>
+                            <span className="ml-2 font-semibold apple-text-body">{volumeResponse.total_pages}</span>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-black dark:text-white">Volumes:</h4>
-                        <div className="space-y-2">
-                          {volumeResponse.volumes.map((volume) => (
-                            <div key={volume.volume_number} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                              <div>
-                                <span className="font-medium text-black dark:text-white">Volume {volume.volume_number}</span>
-                                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">({volume.page_range})</span>
-                              </div>
-                              <div className="text-sm text-gray-600 dark:text-gray-400">
-                                {volume.pages} pages
+                      <div className="space-y-4">
+                        <h4 className="apple-text-body font-semibold">Volumes:</h4>
+                        <div className="space-y-3">
+                          {volumeResponse.volumes.map((volume, index) => (
+                            <div key={volume.volume_number} className="apple-card p-4 bg-secondary/50 hover:bg-secondary/70" style={{animationDelay: `${index * 100}ms`}}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="apple-text-body font-medium">Volume {volume.volume_number}</span>
+                                  <span className="ml-3 apple-text-caption">({volume.page_range})</span>
+                                </div>
+                                <div className="apple-text-caption font-medium">
+                                  {volume.pages} pages
+                                </div>
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
                       
-                      <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border border-green-200 dark:border-green-800">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="text-sm text-green-700 dark:text-green-300">
+                      <div className="apple-glass p-6 rounded-2xl border border-green-500/30 bg-green-500/10">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          <span className="apple-text-body text-green-700 dark:text-green-300">
                             ✅ Court-ready: Each volume ≤500 pages - Perfect for court filing
                           </span>
                         </div>
@@ -830,10 +832,10 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
 
           {/* Processing Options - Right (1 column) */}
           <div className="lg:col-span-1">
-            <Card className="bg-white dark:bg-black border border-black dark:border-white">
+            <Card className="animate-apple-fade-in sticky top-32">
               <CardHeader>
-                <CardTitle className="text-black dark:text-white">Processing Options</CardTitle>
-                <CardDescription className="text-black/70 dark:text-white/70">Select features and process your documents</CardDescription>
+                <CardTitle>Processing Options</CardTitle>
+                <CardDescription>Select features and process your documents</CardDescription>
               </CardHeader>
               <CardContent>
                 <ProcessingOptions 
@@ -857,9 +859,9 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
         </div>
 
         {error && (
-          <Card className="border-red-500 bg-red-50 dark:bg-red-950 mb-6">
-            <CardContent className="pt-4 pb-4">
-              <p className="text-red-700 dark:text-red-300">{error}</p>
+          <Card className="border-red-500/30 bg-red-500/10 mb-8 animate-apple-fade-in">
+            <CardContent className="pt-6 pb-6">
+              <p className="apple-text-body text-red-700 dark:text-red-300">{error}</p>
             </CardContent>
           </Card>
         )}
