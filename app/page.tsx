@@ -7,7 +7,6 @@ import { FileUpload } from "@/components/file-upload"
 import { ProcessingOptions } from "@/components/processing-options"
 import { ProcessingStatus } from "@/components/processing-status"
 import { PDFPreview } from "@/components/pdf-preview"
-import { DownloadSection } from "@/components/download-section"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
@@ -62,35 +61,7 @@ interface Quote {
   cost_breakdown: string
 }
 
-interface PaymentData {
-  payment_reference: string
-  access_code: string
-  amount: number
-  message: string
-}
-
 // Backend API response types - Supporting multiple formats
-interface BackendSuccessResponse {
-  success: true
-  processed_document: {
-    filename: string
-    content: string
-    pages: number
-    features_applied: string[]
-    processing_time_seconds: number
-    from_cache: boolean
-  }
-}
-
-// Alternative response format - direct document response
-interface DirectDocumentResponse {
-  filename: string
-  content: string
-  pages: number
-  features_applied: string[]
-  processing_time_seconds: number
-  from_cache: boolean
-}
 
 interface BackendErrorResponse {
   detail: string
@@ -109,11 +80,8 @@ export default function Home() {
   const [processedDocument, setProcessedDocument] = useState<ProcessedDocument | null>(null)
   const [volumeResponse, setVolumeResponse] = useState<VolumeResponse | null>(null)
   const [quote, setQuote] = useState<Quote | null>(null)
-  const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
-  const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "failed">("idle")
   const [error, setError] = useState<string | null>(null)
   const [downloadTimer, setDownloadTimer] = useState<number>(0)
-  const [showDownloadButton, setShowDownloadButton] = useState(false)
   const [autoDownloadFailed, setAutoDownloadFailed] = useState(false)
   const [isPreviewFullView, setIsPreviewFullView] = useState(false)
 
@@ -153,7 +121,7 @@ export default function Home() {
 
   // Auto-download function - handles both single documents and volumes
   const autoDownload = async () => {
-    if ((!processedDocument && !volumeResponse) || !paymentData) return
+    if (!processedDocument && !volumeResponse) return
     
     try {
       console.log("Starting auto-download...")
@@ -207,7 +175,7 @@ export default function Home() {
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [downloadTimer, processedDocument, volumeResponse, paymentData])
+  }, [downloadTimer, processedDocument, volumeResponse])
 
   const handleFilesSelected = useCallback(
     (files: Document[]) => {
@@ -242,9 +210,6 @@ export default function Home() {
     // Count selected features
     const selectedFeaturesCount = Object.values(selectedFeatures).filter(Boolean).length
 
-    // Calculate cost: 1 KSH per page per feature
-    const totalCost = totalPages * selectedFeaturesCount
-
     // Show volume estimation for large documents
     if (totalPages > 500) {
       const estimatedVolumes = Math.ceil(totalPages / 500)
@@ -255,9 +220,9 @@ export default function Home() {
 
     const newQuote: Quote = {
       total_pages: totalPages,
-      total_cost: totalCost,
+      total_cost: 0,
       currency: "KSH",
-      cost_breakdown: `${totalPages} pages × ${selectedFeaturesCount} features × 1 KSH`,
+      cost_breakdown: `${totalPages} pages × ${selectedFeaturesCount} features (FREE)`,
     }
 
     setQuote(newQuote)
@@ -315,7 +280,7 @@ export default function Home() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout - more reasonable
 
-      const response = await fetch("https://web-production-fb32b.up.railway.app/api/process", {
+      const response = await fetch("https://yiy0wjpu60.execute-api.ap-northeast-1.amazonaws.com/prod/api/process", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -406,11 +371,15 @@ export default function Home() {
           setProcessedDocument(null)
           console.log(`✅ Volume processing completed in ${totalTime}ms - ${processedDoc.volume_count} volumes created`)
           toast.success(`Document split into ${processedDoc.volume_count} court-compliant volumes!`)
+          // Auto-download immediately after processing
+          setDownloadTimer(1)
         } else {
           setProcessedDocument(processedDoc as ProcessedDocument)
           setVolumeResponse(null)
           console.log(`✅ Processing completed in ${totalTime}ms`)
           toast.success(`Documents processed in ${totalTime}ms!`)
+          // Auto-download immediately after processing
+          setDownloadTimer(1)
         }
       } catch (extractError) {
         // Log the actual response for debugging
@@ -439,147 +408,11 @@ export default function Home() {
     }
   }
 
-  const initiatePayment = async () => {
-    if (!quote) {
-      setError("Quote not available")
-      return
-    }
-
-    setPaymentStatus("processing")
-    setError(null)
-
-    try {
-      // Import and use Paystack directly
-      console.log("Loading Paystack library...")
-      const PaystackPop = (await import("@paystack/inline-js")).default
-      
-      if (!PaystackPop) {
-        throw new Error("Failed to load Paystack library")
-      }
-      
-      console.log("Creating Paystack popup instance...")
-      const popup = new PaystackPop()
-      
-      if (!popup || typeof popup.newTransaction !== 'function') {
-        throw new Error("Paystack popup instance is invalid")
-      }
-      
-      // Use a default email - user will enter their details in the Paystack popup
-      const defaultEmail = "customer@polihive.com"
-      
-      const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
-      
-      console.log("Paystack public key:", publicKey ? "Loaded successfully" : "MISSING")
-      
-      if (!publicKey) {
-        throw new Error("Paystack public key is not configured. Check your .env file and restart the dev server.")
-      }
-      
-      // Validate payment amount
-      const amountInKobo = Math.round(quote.total_cost * 100)
-      
-      if (amountInKobo < 100) {
-        throw new Error("Payment amount is too small (minimum 1 KES)")
-      }
-      
-      if (amountInKobo > 100000000) {
-        throw new Error("Payment amount is too large (maximum 1,000,000 KES)")
-      }
-      
-      console.log("Initializing Paystack payment with:", {
-        amount: amountInKobo,
-        currency: "KES",
-        email: defaultEmail,
-        keyLength: publicKey.length,
-        keyPrefix: publicKey.substring(0, 7) + "...",
-        keyFull: publicKey, // Temporary - remove this after debugging
-        totalCost: quote.total_cost
-      })
-      
-      // Simple frontend-only Paystack popup configuration
-      const paymentHandler = () => {
-        const paystackPop = new PaystackPop()
-        paystackPop.newTransaction({
-          key: publicKey,
-          email: defaultEmail,
-          amount: amountInKobo,
-          currency: "KES",
-          ref: 'TXN_' + Math.floor((Math.random() * 1000000000) + 1), // Generate unique reference
-          channels: ['mobile_money', 'card', 'bank'], // M-Pesa first, then other options
-          preferred_channel: 'mobile_money', // Set M-Pesa as default
-          metadata: {
-            custom_fields: [
-              {
-                display_name: "Documents",
-                variable_name: "documents",
-                value: documents.map(doc => doc.filename).join(", ")
-              },
-              {
-                display_name: "Features",
-                variable_name: "features", 
-                value: Object.keys(features).filter(key => features[key as keyof ProcessingFeatures]).join(", ")
-              }
-            ]
-          },
-          callback: function(response: any) {
-            // Payment successful
-            console.log("Payment successful:", response)
-            setPaymentData({
-              payment_reference: response.reference,
-              access_code: response.reference,
-              amount: quote.total_cost,
-              message: "Payment successful",
-            })
-            setPaymentStatus("success")
-            setDownloadTimer(3)
-            setAutoDownloadFailed(false)
-            
-            const downloadMessage = volumeResponse 
-              ? `Payment successful! ZIP download starting in 3 seconds...`
-              : `Payment successful! Download starting in 3 seconds...`
-            toast.success(downloadMessage, { duration: 3000 })
-          },
-          onClose: function() {
-            // Payment cancelled or window closed
-            console.log("Payment window closed")
-            setPaymentStatus("idle")
-            toast.error("Payment was cancelled")
-          },
-          onError: function(error: any) {
-            // Handle payment errors gracefully
-            console.error("Payment error:", error)
-            setPaymentStatus("failed")
-            if (error.message && error.message.includes("mobile_money")) {
-              toast.error("M-Pesa payment failed. Please try again or use card/bank transfer.")
-            } else {
-              toast.error("Payment failed. Please try again.")
-            }
-          }
-        })
-      }
-      
-      console.log("About to initialize payment popup")
-      
-      try {
-        // Execute the payment handler
-        paymentHandler()
-        console.log("Payment popup initialized successfully")
-      } catch (popupError) {
-        console.error("Error calling newTransaction:", popupError)
-        throw new Error(`Failed to initialize payment popup: ${popupError instanceof Error ? popupError.message : 'Unknown error'}`)
-      }
-
-    } catch (err) {
-      console.error("Payment error:", err)
-      setError(err instanceof Error ? err.message : "Payment initiation failed")
-      setPaymentStatus("failed")
-      toast.error("Payment initiation failed")
-    }
-  }
+  // Payment function removed - service is now free
 
   // Manual download function for the download button
   const handleManualDownload = async () => {
-    if ((!processedDocument && !volumeResponse) || !paymentData) {
+    if (!processedDocument && !volumeResponse) {
       toast.error("No processed document available for download")
       return
     }
@@ -762,8 +595,6 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                       onClick={() => {
                         setProcessedDocument(null)
                         setVolumeResponse(null)
-                        setPaymentStatus("idle")
-                        setPaymentData(null)
                         setError(null)
                       }}
                       className="apple-animation-smooth"
@@ -834,7 +665,7 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                   ) : (
                     <PDFPreview 
                       document={processedDocument!} 
-                      isPaymentComplete={paymentStatus === "success"}
+                      isPaymentComplete={true}
                       onToggleFullView={setIsPreviewFullView}
                     />
                   )}
@@ -863,11 +694,9 @@ Response: ${JSON.stringify(response).substring(0, 500)}...`)
                   quote={quote}
                   documentsCount={documents.length}
                   onProcess={processDocuments}
-                  onPayment={initiatePayment}
                   onDownload={handleManualDownload}
                   isProcessing={isProcessing}
                   hasProcessedDocument={!!processedDocument || !!volumeResponse}
-                  paymentStatus={paymentStatus}
                   downloadTimer={downloadTimer}
                   autoDownloadFailed={autoDownloadFailed}
                   volumeResponse={volumeResponse}

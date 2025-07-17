@@ -4,7 +4,7 @@ import React from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileStack, Hash, RotateCcw, CreditCard, Download } from "lucide-react"
+import { FileStack, Hash, RotateCcw, Download } from "lucide-react"
 
 interface ProcessingFeatures {
   merge_pdfs: boolean
@@ -43,11 +43,9 @@ interface ProcessingOptionsProps {
   quote: Quote | null
   documentsCount: number
   onProcess: () => void
-  onPayment: () => void
   onDownload: () => void
   isProcessing: boolean
   hasProcessedDocument: boolean
-  paymentStatus: "idle" | "processing" | "success" | "failed"
   downloadTimer: number
   autoDownloadFailed: boolean
   volumeResponse?: VolumeResponse | null
@@ -59,11 +57,9 @@ export function ProcessingOptions({
   quote, 
   documentsCount, 
   onProcess, 
-  onPayment, 
   onDownload,
   isProcessing, 
   hasProcessedDocument, 
-  paymentStatus,
   downloadTimer,
   autoDownloadFailed,
   volumeResponse
@@ -198,13 +194,13 @@ export function ProcessingOptions({
         })}
       </div>
 
-      {/* Real-time Cost Display */}
+      {/* FREE Service Display */}
       {quote && documentsCount > 0 && (
-        <Card className="apple-glass border-primary/20 bg-primary/5">
+        <Card className="apple-glass border-green-500/20 bg-green-500/5">
           <CardContent className="pt-6 pb-6">
             <div className="text-center">
-              <div className="text-3xl font-bold mb-2 apple-text-title text-primary">
-                {quote.total_cost} {quote.currency}
+              <div className="text-3xl font-bold mb-2 apple-text-title text-green-600">
+                FREE
               </div>
               <p className="apple-text-caption">{quote.cost_breakdown}</p>
             </div>
@@ -231,12 +227,12 @@ export function ProcessingOptions({
                 </>
               ) : (
                 <>
-                  Process Documents
+                  Process Documents (FREE)
                 </>
               )}
             </Button>
-          ) : paymentStatus === "success" ? (
-            // Download Button or Timer (after successful payment)
+          ) : (
+            // Download Button or Timer (after processing)
             <div className="space-y-3">
               {downloadTimer > 0 ? (
                 <Button
@@ -267,33 +263,12 @@ export function ProcessingOptions({
                 </p>
               )}
             </div>
-          ) : (
-            // Pay Button (after processing, before payment)
-            <Button
-              onClick={onPayment}
-              disabled={paymentStatus === "processing"}
-              variant="apple"
-              className="w-full font-semibold bg-green-500 hover:bg-green-600"
-              size="lg"
-            >
-              {paymentStatus === "processing" ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Processing Payment...
-                </>
-              ) : (
-                <>
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Pay {quote?.total_cost} {quote?.currency} via M-Pesa
-                </>
-              )}
-            </Button>
           )}
           
-          {/* M-Pesa Payment Info */}
-          {!hasProcessedDocument && paymentStatus === "idle" && (
+          {/* Free Service Info */}
+          {!hasProcessedDocument && (
             <p className="apple-text-caption text-center text-muted-foreground mt-3">
-              💳 Primary: M-Pesa • Also accepts Cards & Bank Transfer
+              🎉 Completely FREE • No payment required
             </p>
           )}
         </div>

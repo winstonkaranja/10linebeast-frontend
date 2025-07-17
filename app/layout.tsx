@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css"
-import Script from "next/script"
 
 export const metadata: Metadata = {
   title: "PoliHive - Legal Document Processor",
@@ -19,7 +18,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script src="https://js.paystack.co/v1/inline.js" strategy="beforeInteractive" />
       </head>
       <body className="bg-white dark:bg-black text-black dark:text-white transition-colors">
         <ThemeProvider

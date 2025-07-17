@@ -21,7 +21,7 @@ interface PDFPreviewProps {
   onToggleFullView?: (isFullView: boolean) => void
 }
 
-export function PDFPreview({ document, isPaymentComplete = false, onToggleFullView }: PDFPreviewProps) {
+export function PDFPreview({ document, isPaymentComplete = true, onToggleFullView }: PDFPreviewProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [zoom, setZoom] = useState(100)
   const [isFullView, setIsFullView] = useState(false)
@@ -217,56 +217,25 @@ export function PDFPreview({ document, isPaymentComplete = false, onToggleFullVi
               </div>
             )}
 
-            {/* Security Overlay - Only if payment not complete */}
-            {!isPaymentComplete && (
-              <div 
-                className="absolute inset-0 bg-transparent cursor-not-allowed"
-                style={{ 
-                  pointerEvents: 'auto',
-                  zIndex: 10,
-                }}
-                onContextMenu={(e) => e.preventDefault()}
-                onDragStart={(e) => e.preventDefault()}
-                onMouseDown={(e) => e.preventDefault()}
-              />
-            )}
+            {/* Document is always accessible - no payment required */}
 
             {/* Preview Watermark */}
             <div className="absolute top-4 right-4 apple-glass px-4 py-2 rounded-full apple-text-caption font-medium shadow-lg pointer-events-none backdrop-blur-md">
               <Eye className="h-3 w-3 inline mr-2" />
-              {isPaymentComplete ? 'Document' : 'Preview'}
+              Document
             </div>
 
-            {/* Payment Lock Overlay */}
-            {!isPaymentComplete && (
-              <div className="absolute inset-x-4 bottom-4 apple-glass p-4 rounded-2xl border border-border/50 backdrop-blur-md pointer-events-none">
-                <div className="flex items-center justify-center gap-3">
-                  <div className="p-2 bg-orange-500/20 rounded-xl">
-                    <Eye className="h-4 w-4 text-orange-600" />
-                  </div>
-                  <div className="text-center">
-                    <p className="apple-text-body font-medium text-orange-700 dark:text-orange-300">
-                      Secure Preview Mode
-                    </p>
-                    <p className="apple-text-caption text-orange-600 dark:text-orange-400">
-                      Complete payment to access full document functionality
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Document is fully accessible */}
           </div>
         </CardContent>
       </Card>
 
-      {/* Security Notice - Apple Style */}
-      {!isPaymentComplete && (
-        <div className="apple-glass p-4 rounded-2xl border border-border/50 text-center">
-          <p className="apple-text-body text-muted-foreground">
-            🔒 Secure preview of your processed document. Complete payment to unlock full access.
-          </p>
-        </div>
-      )}
+      {/* Success Notice - Apple Style */}
+      <div className="apple-glass p-4 rounded-2xl border border-green-500/50 bg-green-500/5 text-center">
+        <p className="apple-text-body text-green-600 dark:text-green-400">
+          ✅ Your processed document is ready for download!
+        </p>
+      </div>
     </div>
   )
 }
