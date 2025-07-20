@@ -280,7 +280,7 @@ export default function Home() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout - more reasonable
 
-      const response = await fetch("https://yiy0wjpu60.execute-api.ap-northeast-1.amazonaws.com/prod/api/process", {
+      const response = await fetch("https://jjqtokfdg3.execute-api.eu-north-1.amazonaws.com/prod/api/process", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
